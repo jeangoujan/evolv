@@ -1,20 +1,41 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart'; // mintPrimary, mintSecondary, textDark, textLight
+import '../theme/app_theme.dart';
+import 'add_skill_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Хранилище навыков в памяти (позже заменим на БД)
+  final List<Map<String, dynamic>> skills = [
+    {
+      'name': 'Piano',
+      'goal': '45',
+      'icon': Icons.music_note,
+      'color': const Color(0xFFA3F1D0),
+    },
+    {
+      'name': 'Coding',
+      'goal': '20',
+      'icon': Icons.laptop_mac,
+      'color': const Color(0xFFB5D8FA),
+    },
+    {
+      'name': 'Languages',
+      'goal': '12',
+      'icon': Icons.translate,
+      'color': const Color(0xFFFAC7C3),
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    // временные данные
-    final skills = const [
-      {'name': 'Piano', 'hours': 45},
-      {'name': 'Coding', 'hours': 20},
-      {'name': 'Languages', 'hours': 12},
-    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -37,32 +58,49 @@ class HomeScreen extends StatelessWidget {
         itemBuilder: (context, i) {
           final s = skills[i];
           return _SkillCard(
-            name: s['name'] as String,
-            hours: s['hours'] as int,
+            name: (s['name'] ?? '').toString(),
+            hours: (s['goal'] ?? '0').toString(),
+            icon: s['icon'] as IconData,
+            color: s['color'] as Color,
             onCardTap: () {
-              // TODO: переход к деталям/статистике
+              // TODO: открыть статистику/детали навыка
             },
             onStartTap: () {
-              // TODO: запуск таймера
+              // TODO: запустить таймер
             },
           );
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: const _AddSkillFab(),
+      floatingActionButton: _AddSkillFab(
+        onPressed: () async {
+          final newSkill = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddSkillScreen()),
+          );
+          if (!mounted) return;
+          if (newSkill != null && newSkill is Map<String, dynamic>) {
+            setState(() => skills.add(newSkill));
+          }
+        },
+      ),
     );
   }
 }
 
 class _SkillCard extends StatelessWidget {
   final String name;
-  final int hours;
+  final String hours;
+  final IconData icon;
+  final Color color;
   final VoidCallback onCardTap;
   final VoidCallback onStartTap;
 
   const _SkillCard({
     required this.name,
     required this.hours,
+    required this.icon,
+    required this.color,
     required this.onCardTap,
     required this.onStartTap,
   });
@@ -72,7 +110,6 @@ class _SkillCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // более контрастная карточка + тени
     final cardColor = isDark ? const Color(0xFF181C18) : Colors.white;
     final neuShadows = isDark
         ? [
@@ -111,23 +148,21 @@ class _SkillCard extends StatelessWidget {
         boxShadow: neuShadows,
       ),
       child: _AnimatedTap(
-        onTap: onCardTap, // клик по карточке отдельно
+        onTap: onCardTap, // отдельный тап по карточке
         borderRadius: 28,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             children: [
-              // аватарка-иконка с контрастным фоном
+              // Круг под иконку (с выбранным цветом)
               Container(
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color:
-                      isDark ? const Color(0xFF252A25) : const Color(0xFFF2F5F2),
+                  color: color.withOpacity(0.85),
                   border: Border.all(
-                    color:
-                        isDark ? Colors.white12 : const Color(0xFFE7ECE7),
+                    color: isDark ? Colors.white12 : const Color(0xFFE7ECE7),
                     width: 1,
                   ),
                   boxShadow: isDark
@@ -147,13 +182,15 @@ class _SkillCard extends StatelessWidget {
                         ],
                 ),
                 child: Icon(
-                  _iconForSkill(name),
+                  icon,
                   size: 26,
-                  color: theme.colorScheme.primary,
+                  color: isDark
+                    ? Color.lerp(Colors.black, theme.colorScheme.primary, 0.3)! // 🌙 Тёмный, глубокий оттенок
+                    : theme.colorScheme.primary,
                 ),
               ),
               const SizedBox(width: 16),
-              // текст
+              // Текст
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +217,7 @@ class _SkillCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              // кнопка Start — независимая зона нажатия + анимация
+              // Кнопка Start — отдельная интерактивная область + собственный эффект
               _AnimatedTap(
                 onTap: onStartTap,
                 borderRadius: 30,
@@ -193,17 +230,9 @@ class _SkillCard extends StatelessWidget {
       ),
     );
   }
-
-  IconData _iconForSkill(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('piano')) return Icons.music_note;
-    if (n.contains('coding') || n.contains('code')) return Icons.laptop_mac;
-    if (n.contains('lang')) return Icons.chat_bubble_outline;
-    return Icons.auto_graph_rounded;
-  }
 }
 
-// увеличенная и контрастная капсула Start
+// ---------------- Start pill ----------------
 class _StartPill extends StatelessWidget {
   const _StartPill();
 
@@ -217,35 +246,22 @@ class _StartPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1F241F) : Colors.white,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.45),
-                  offset: const Offset(3, 3),
-                  blurRadius: 10,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.08),
-                  offset: const Offset(-3, -3),
-                  blurRadius: 10,
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  offset: const Offset(3, 3),
-                  blurRadius: 10,
-                ),
-                const BoxShadow(
-                  color: Colors.white,
-                  offset: Offset(-3, -3),
-                  blurRadius: 10,
-                ),
-              ],
         border: Border.all(
           color: theme.colorScheme.primary.withOpacity(0.3),
           width: 1.2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.45 : 0.08),
+            offset: const Offset(3, 3),
+            blurRadius: 10,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(isDark ? 0.08 : 1),
+            offset: const Offset(-3, -3),
+            blurRadius: 10,
+          ),
+        ],
       ),
       child: Text(
         'Start',
@@ -260,9 +276,10 @@ class _StartPill extends StatelessWidget {
   }
 }
 
-// мягкий “glow”-FAB по центру
+// ---------------- Add Skill FAB ----------------
 class _AddSkillFab extends StatelessWidget {
-  const _AddSkillFab();
+  final VoidCallback onPressed;
+  const _AddSkillFab({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -281,9 +298,7 @@ class _AddSkillFab extends StatelessWidget {
         ],
       ),
       child: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigator.pushNamed(context, '/add');
-        },
+        onPressed: onPressed,
         backgroundColor: isDark ? mintSecondary : mintPrimary,
         foregroundColor: Colors.white,
         elevation: 6,
@@ -301,13 +316,12 @@ class _AddSkillFab extends StatelessWidget {
   }
 }
 
-/// Универсальный виджет лёгкого “scale”-эффекта при тапе
-
+// ---------------- Tap effect (soft-neomorphism) ----------------
 class _AnimatedTap extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
   final double borderRadius;
-  final bool isButton; // 👈 добавили флаг для “Start” кнопки
+  final bool isButton; // для кнопок усиливаем эффект
 
   const _AnimatedTap({
     required this.child,
@@ -323,16 +337,15 @@ class _AnimatedTap extends StatefulWidget {
 class _AnimatedTapState extends State<_AnimatedTap> {
   bool _pressed = false;
 
-  void _onTapDown(TapDownDetails _) => setState(() => _pressed = true);
-  void _onTapUp(TapUpDetails _) => setState(() => _pressed = false);
-  void _onTapCancel() => setState(() => _pressed = false);
+  void _down(TapDownDetails _) => setState(() => _pressed = true);
+  void _up(TapUpDetails _) => setState(() => _pressed = false);
+  void _cancel() => setState(() => _pressed = false);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // 🌗 усиливаем контраст светлой темы
     final shadowUp = isDark
         ? [
             BoxShadow(
@@ -385,15 +398,14 @@ class _AnimatedTapState extends State<_AnimatedTap> {
             ),
           ];
 
-    // если элемент — кнопка (например Start), делаем эффект чуть сильнее
-    final appliedShadow = _pressed
-        ? (widget.isButton ? shadowDown.map((s) => s.copyWith(blurRadius: 8)).toList() : shadowDown)
-        : (widget.isButton ? shadowUp.map((s) => s.copyWith(blurRadius: 12)).toList() : shadowUp);
+    final applied = _pressed
+        ? (widget.isButton ? _boost(shadowDown, 1.2) : shadowDown)
+        : (widget.isButton ? _boost(shadowUp, 1.1) : shadowUp);
 
     return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
+      onTapDown: _down,
+      onTapUp: _up,
+      onTapCancel: _cancel,
       onTap: widget.onTap,
       behavior: HitTestBehavior.translucent,
       child: AnimatedContainer(
@@ -401,10 +413,14 @@ class _AnimatedTapState extends State<_AnimatedTap> {
         curve: Curves.easeOut,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(widget.borderRadius),
-          boxShadow: appliedShadow,
+          boxShadow: applied,
         ),
         child: widget.child,
       ),
     );
   }
+
+  // небольшое усиление blur для кнопок
+  List<BoxShadow> _boost(List<BoxShadow> src, double k) =>
+      src.map((s) => s.copyWith(blurRadius: s.blurRadius * k)).toList();
 }
