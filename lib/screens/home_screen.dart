@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'add_skill_screen.dart';
 import 'session_timer_screen.dart';
+import 'skills_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -64,7 +65,16 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: s['icon'] as IconData,
             color: s['color'] as Color,
             onCardTap: () {
-              // TODO: открыть статистику/детали навыка
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SkillDetailScreen(
+                    skillName: s['name'],
+                    hoursDone: double.tryParse(s['goal'].toString()) ?? 0,
+                    goalHours: 100, // временно фиксируем цель
+                  ),
+                ),
+              );
             },
             onStartTap: () async {
               final result = await Navigator.push(
