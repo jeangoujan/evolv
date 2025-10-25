@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'add_skill_screen.dart';
+import 'session_timer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -65,9 +66,21 @@ class _HomeScreenState extends State<HomeScreen> {
             onCardTap: () {
               // TODO: открыть статистику/детали навыка
             },
-            onStartTap: () {
-              // TODO: запустить таймер
-            },
+            onStartTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SessionTimerScreen(
+                    skillName: s['name'],
+                    // targetDuration: Duration(minutes: 90), // боевой режим
+                    targetDuration: Duration(seconds: 10),   // тест
+                  ),
+                ),
+              );
+
+  // result — это Map со временем/заметкой, пригодится для истории
+  // print(result);
+},
           );
         },
       ),
