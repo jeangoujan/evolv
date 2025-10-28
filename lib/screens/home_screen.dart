@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../theme/app_theme.dart';
+import '../data/hive_boxes.dart';
+import '../data/models/skill.dart';
 import 'add_skill_screen.dart';
 import 'session_timer_screen.dart';
 import 'skills_detail_screen.dart';
@@ -12,27 +15,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Хранилище навыков в памяти (позже заменим на БД)
-  final List<Map<String, dynamic>> skills = [
-    {
-      'name': 'Piano',
-      'goal': '45',
-      'icon': Icons.music_note,
-      'color': const Color(0xFFA3F1D0),
-    },
-    {
-      'name': 'Coding',
-      'goal': '20',
-      'icon': Icons.laptop_mac,
-      'color': const Color(0xFFB5D8FA),
-    },
-    {
-      'name': 'Languages',
-      'goal': '12',
-      'icon': Icons.translate,
-      'color': const Color(0xFFFAC7C3),
-    },
-  ];
+  late final Box<Skill> skillBox;
+
+  @override
+  void initState() {
+    super.initState();
+    skillBox = HiveBoxes.skillBox();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,44 +42,60 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-        itemCount: skills.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
-        itemBuilder: (context, i) {
-          final s = skills[i];
-          return _SkillCard(
-            name: (s['name'] ?? '').toString(),
-            hours: (s['goal'] ?? '0').toString(),
-            icon: s['icon'] as IconData,
-            color: s['color'] as Color,
-            onCardTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SkillDetailScreen(
-                    skillName: s['name'],
-                    hoursDone: double.tryParse(s['goal'].toString()) ?? 0,
-                    goalHours: 100, // временно фиксируем цель
-                  ),
+      body: ValueListenableBuilder(
+        valueListenable: skillBox.listenable(),
+        builder: (context, Box<Skill> box, _) {
+          final skills = box.values.toList();
+
+          if (skills.isEmpty) {
+            return Center(
+              child: Text(
+                'No skills yet.\nTap "Add Skill" to start!',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: isDark ? Colors.white60 : Colors.black54,
                 ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            itemCount: skills.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, i) {
+              final s = skills[i];
+              return _SkillCard(
+                name: s.name,
+                hours: s.totalHours.toStringAsFixed(0),
+                icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
+                color: Color(s.colorValue),
+                onCardTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SkillDetailScreen(
+                        skillName: s.name,
+                        hoursDone: s.totalHours,
+                        goalHours: s.goalHours,
+                      ),
+                    ),
+                  );
+                },
+                onStartTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SessionTimerScreen(
+                        skillName: s.name,
+                        skillId: s.id,
+                        targetDuration: const Duration(seconds: 10), // тест
+                      ),
+                    ),
+                  );
+                },
               );
             },
-            onStartTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SessionTimerScreen(
-                    skillName: s['name'],
-                    // targetDuration: Duration(minutes: 90), // боевой режим
-                    targetDuration: Duration(seconds: 10),   // тест
-                  ),
-                ),
-              );
-
-  // result — это Map со временем/заметкой, пригодится для истории
-  // print(result);
-},
           );
         },
       ),
@@ -101,9 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             MaterialPageRoute(builder: (_) => const AddSkillScreen()),
           );
-          if (!mounted) return;
-          if (newSkill != null && newSkill is Map<String, dynamic>) {
-            setState(() => skills.add(newSkill));
+          if (newSkill != null && newSkill is Skill) {
+            skillBox.put(newSkill.id, newSkill);
           }
         },
       ),
@@ -171,13 +175,12 @@ class _SkillCard extends StatelessWidget {
         boxShadow: neuShadows,
       ),
       child: _AnimatedTap(
-        onTap: onCardTap, // отдельный тап по карточке
+        onTap: onCardTap,
         borderRadius: 28,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             children: [
-              // Круг под иконку (с выбранным цветом)
               Container(
                 width: 52,
                 height: 52,
@@ -208,12 +211,11 @@ class _SkillCard extends StatelessWidget {
                   icon,
                   size: 26,
                   color: isDark
-                    ? Color.lerp(Colors.black, theme.colorScheme.primary, 0.3)! // 🌙 Тёмный, глубокий оттенок
-                    : theme.colorScheme.primary,
+                      ? Color.lerp(Colors.black, theme.colorScheme.primary, 0.3)!
+                      : theme.colorScheme.primary,
                 ),
               ),
               const SizedBox(width: 16),
-              // Текст
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +242,6 @@ class _SkillCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              // Кнопка Start — отдельная интерактивная область + собственный эффект
               _AnimatedTap(
                 onTap: onStartTap,
                 borderRadius: 30,
@@ -255,7 +256,6 @@ class _SkillCard extends StatelessWidget {
   }
 }
 
-// ---------------- Start pill ----------------
 class _StartPill extends StatelessWidget {
   const _StartPill();
 
@@ -299,7 +299,6 @@ class _StartPill extends StatelessWidget {
   }
 }
 
-// ---------------- Add Skill FAB ----------------
 class _AddSkillFab extends StatelessWidget {
   final VoidCallback onPressed;
   const _AddSkillFab({required this.onPressed});
@@ -339,12 +338,11 @@ class _AddSkillFab extends StatelessWidget {
   }
 }
 
-// ---------------- Tap effect (soft-neomorphism) ----------------
 class _AnimatedTap extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
   final double borderRadius;
-  final bool isButton; // для кнопок усиливаем эффект
+  final bool isButton;
 
   const _AnimatedTap({
     required this.child,
@@ -443,7 +441,6 @@ class _AnimatedTapState extends State<_AnimatedTap> {
     );
   }
 
-  // небольшое усиление blur для кнопок
   List<BoxShadow> _boost(List<BoxShadow> src, double k) =>
       src.map((s) => s.copyWith(blurRadius: s.blurRadius * k)).toList();
 }

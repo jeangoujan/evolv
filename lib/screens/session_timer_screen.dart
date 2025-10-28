@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
 class SessionTimerScreen extends StatefulWidget {
+  final int skillId;
   final String skillName;
 
   /// Боевой дефолт будет 1h30m, но для теста можно передать 10s.
@@ -12,6 +13,7 @@ class SessionTimerScreen extends StatefulWidget {
   const SessionTimerScreen({
     super.key,
     required this.skillName,
+    required this.skillId,
     this.targetDuration = const Duration(seconds: 10), // ← сейчас 10s для тестов
   });
 

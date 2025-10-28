@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import '../data/models/skill.dart';
 import '../theme/app_theme.dart';
 
 class AddSkillScreen extends StatefulWidget {
@@ -51,22 +53,7 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
             color: isDark ? textLight : textDark,
             size: 20,
           ),
-          onPressed: () {
-            // если пользователь ничего не ввёл — просто выходим без возврата данных
-            if (_nameController.text.trim().isEmpty) {
-              Navigator.pop(context);
-              return;
-            }
-
-            final newSkill = {
-              'name': _nameController.text.trim(),
-              'goal': _goalController.text.trim(),
-              'icon': _icons[_selectedIconIndex ?? 0],
-              'color': _colors[_selectedColorIndex ?? 0],
-            };
-
-            Navigator.pop(context, newSkill);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
         title: Text(
@@ -170,70 +157,70 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
     );
   }
 
-Widget _buildIconGrid(bool isDark) {
-  return GridView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    itemCount: _icons.length,
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 4,
-    ),
-    itemBuilder: (context, index) {
-      final selected = _selectedIconIndex == index;
+  Widget _buildIconGrid(bool isDark) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _icons.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+      ),
+      itemBuilder: (context, index) {
+        final selected = _selectedIconIndex == index;
 
-      return GestureDetector(
-        onTap: () => setState(() => _selectedIconIndex = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF202620)
-                : const Color(0xFFF9FBF9),
-            shape: BoxShape.circle,
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: mintPrimary.withOpacity(0.5),
-                      blurRadius: 25,
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                      offset: const Offset(3, 3),
-                      blurRadius: 10,
-                    ),
-                    BoxShadow(
-                      color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
-                      offset: const Offset(-3, -3),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                      offset: const Offset(3, 3),
-                      blurRadius: 10,
-                    ),
-                    BoxShadow(
-                      color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
-                      offset: const Offset(-3, -3),
-                      blurRadius: 8,
-                    ),
-                  ],
+        return GestureDetector(
+          onTap: () => setState(() => _selectedIconIndex = index),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF202620)
+                  : const Color(0xFFF9FBF9),
+              shape: BoxShape.circle,
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: mintPrimary.withOpacity(0.5),
+                        blurRadius: 25,
+                        spreadRadius: 2,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                        offset: const Offset(3, 3),
+                        blurRadius: 10,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
+                        offset: const Offset(-3, -3),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                        offset: const Offset(3, 3),
+                        blurRadius: 10,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
+                        offset: const Offset(-3, -3),
+                        blurRadius: 8,
+                      ),
+                    ],
+            ),
+            child: Icon(
+              _icons[index],
+              size: 26,
+              color: selected
+                  ? (isDark ? Colors.white : mintPrimary)
+                  : (isDark ? Colors.white70 : Colors.black54),
+            ),
           ),
-          child: Icon(
-            _icons[index],
-            size: 26,
-            color: selected
-                ? (isDark ? Colors.white : mintPrimary)
-                : (isDark ? Colors.white70 : Colors.black54),
-          ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Widget _buildColorRow(bool isDark) {
     return Row(
@@ -276,9 +263,8 @@ Widget _buildIconGrid(bool isDark) {
                         blurRadius: 8,
                       ),
                     ],
-              border: selected
-                  ? Border.all(color: mintPrimary, width: 3)
-                  : null,
+              border:
+                  selected ? Border.all(color: mintPrimary, width: 3) : null,
             ),
           ),
         );
@@ -291,19 +277,23 @@ Widget _buildIconGrid(bool isDark) {
       style: ElevatedButton.styleFrom(
         backgroundColor: mintPrimary,
         elevation: 10,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         padding: const EdgeInsets.symmetric(vertical: 16),
       ),
-      onPressed: () {
+      onPressed: () async {
         if (_nameController.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.black87,
               elevation: 6,
               behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
               content: const Center(
                 child: Text(
                   "Please enter a skill name",
@@ -321,14 +311,26 @@ Widget _buildIconGrid(bool isDark) {
           );
           return;
         }
-        final newSkill = {
-          'name': _nameController.text.trim(),
-          'goal': _goalController.text.trim(),
-          'icon': _icons[_selectedIconIndex ?? 0],
-          'color': _colors[_selectedColorIndex ?? 0],
-        };
 
-        Navigator.pop(context, newSkill);
+        final name = _nameController.text.trim();
+        final goal = int.tryParse(_goalController.text.trim()) ?? 0;
+        final icon = _icons[_selectedIconIndex ?? 0];
+        final color = _colors[_selectedColorIndex ?? 0];
+
+        final newSkill = Skill(
+        id: DateTime.now().millisecondsSinceEpoch, // уникальный ID
+        name: name,
+        goalHours: goal.toDouble(), // double, а не int
+        totalHours: 0,
+        colorValue: color.value,
+        iconCode: icon.codePoint, // ✅ соответствует модели
+        sessions: const [],
+      );
+
+        final box = Hive.box<Skill>('skills');
+        await box.add(newSkill);
+
+        if (context.mounted) Navigator.pop(context, newSkill);
       },
       child: const Text(
         "Save Skill",
