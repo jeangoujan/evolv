@@ -65,35 +65,117 @@ class _HomeScreenState extends State<HomeScreen> {
             separatorBuilder: (_, __) => const SizedBox(height: 16),
             itemBuilder: (context, i) {
               final s = skills[i];
-              return _SkillCard(
-                name: s.name,
-                hours: s.totalHours.toStringAsFixed(0),
-                icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
-                color: Color(s.colorValue),
-                onCardTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SkillDetailScreen(
-                        skillName: s.name,
-                        hoursDone: s.totalHours,
-                        goalHours: s.goalHours,
+              return GestureDetector(
+              onLongPress: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+                    title: Text(
+                      'Delete "${s.name}"?',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.black,
                       ),
                     ),
-                  );
-                },
-                onStartTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SessionTimerScreen(
-                        skillName: s.name,
-                        skillId: s.id,
-                        targetDuration: const Duration(seconds: 10), // тест
+                    content: Text(
+                      'This will remove the skill and all its sessions.',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        color: isDark ? Colors.white70 : Colors.black54,
                       ),
                     ),
-                  );
-                },
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[400] : Colors.black87,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  // 🧹 Удаляем по ключу Hive, а не по id
+                  await skillBox.deleteAt(i);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.redAccent,
+                        behavior: SnackBarBehavior.floating,
+                        elevation: 8,
+                        margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
+                        shape:
+                            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        content: Center(
+                          child: Text(
+                            '"${s.name}" deleted',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              },
+                child: _SkillCard(
+                  name: s.name,
+                  hours: s.totalHours.toStringAsFixed(0),
+                  icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
+                  color: Color(s.colorValue),
+                  onCardTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SkillDetailScreen(
+                          skillName: s.name,
+                          hoursDone: s.totalHours,
+                          goalHours: s.goalHours,
+                          skillId: s.id,
+                        ),
+                      ),
+                    );
+                  },
+                  onStartTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SessionTimerScreen(
+                          skillName: s.name,
+                          skillId: s.id,
+                          targetDuration: const Duration(seconds: 10), // тест
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           );
@@ -114,6 +196,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Skill Card UI
+// ---------------------------------------------------------------------------
 
 class _SkillCard extends StatelessWidget {
   final String name;
@@ -211,7 +297,8 @@ class _SkillCard extends StatelessWidget {
                   icon,
                   size: 26,
                   color: isDark
-                      ? Color.lerp(Colors.black, theme.colorScheme.primary, 0.3)!
+                      ? Color.lerp(
+                          Colors.black, theme.colorScheme.primary, 0.3)!
                       : theme.colorScheme.primary,
                 ),
               ),
@@ -256,6 +343,10 @@ class _SkillCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Start button
+// ---------------------------------------------------------------------------
+
 class _StartPill extends StatelessWidget {
   const _StartPill();
 
@@ -299,6 +390,10 @@ class _StartPill extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Floating Button
+// ---------------------------------------------------------------------------
+
 class _AddSkillFab extends StatelessWidget {
   final VoidCallback onPressed;
   const _AddSkillFab({required this.onPressed});
@@ -337,6 +432,10 @@ class _AddSkillFab extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tap Animation
+// ---------------------------------------------------------------------------
 
 class _AnimatedTap extends StatefulWidget {
   final Widget child;

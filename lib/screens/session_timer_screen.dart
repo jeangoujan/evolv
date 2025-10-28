@@ -1,20 +1,22 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../data/hive_boxes.dart';
+import '../data/models/session.dart';
+import '../data/models/skill.dart';
 import '../theme/app_theme.dart';
 
 class SessionTimerScreen extends StatefulWidget {
   final int skillId;
   final String skillName;
-
-  /// Боевой дефолт будет 1h30m, но для теста можно передать 10s.
   final Duration targetDuration;
 
   const SessionTimerScreen({
     super.key,
     required this.skillName,
     required this.skillId,
-    this.targetDuration = const Duration(seconds: 10), // ← сейчас 10s для тестов
+    this.targetDuration = const Duration(seconds: 120), // ← тестовый таймер
   });
 
   @override
@@ -60,7 +62,7 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
           _completed = true;
           _running = false;
           _timer?.cancel();
-          HapticFeedback.mediumImpact(); // 📳 вибрация по завершении
+          HapticFeedback.mediumImpact();
         }
       });
     });
@@ -73,132 +75,175 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
     setState(() {});
   }
 
-  Future<void> _endSession({required bool fromCompletion}) async {
-    _pause();
-    final result = await _openNoteSheet(fromCompletion: fromCompletion);
-    if (!mounted) return;
-    if (result == null) return;
+    Future<void> _endSession({required bool fromCompletion}) async {
+  _pause();
 
-    // Возвращаем данные на прошлый экран (Home/детали навыка)
-    Navigator.pop(context, result);
-  }
+      // открываем модалку и ждём данные
+      final result = await _openNoteSheet(fromCompletion: fromCompletion);
 
-  Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    _noteCtrl.clear();
+      // если модалку просто закрыли — ничего не делаем
+      if (!mounted || result == null) return;
 
-    return showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            top: 16,
+      try {
+        final now = DateTime.now();
+        final durationMinutes = _elapsed.inSeconds < 60
+            ? _elapsed.inSeconds / 60.0 // хранить в минутах с дробью
+            : _elapsed.inMinutes.toDouble();
+        final sessionBox = Hive.box<Session>('sessions');
+        final skillBox = HiveBoxes.skillBox();
+
+        final safeId = now.microsecondsSinceEpoch % 0xFFFFFFFF;
+
+        final session = Session(
+          id: safeId,
+          skillId: widget.skillId,
+          durationMinutes: durationMinutes,
+          date: now,
+          note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        );
+
+        await sessionBox.put(session.id, session);
+
+        final skill = skillBox.get(widget.skillId);
+        if (skill != null) {
+          skill.totalHours += durationMinutes / 60.0;
+          await skill.save();
+        }
+
+        // 🩵 безопасный pop после завершения bottom sheet
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted && Navigator.canPop(context)) {
+            Navigator.of(context).pop(true);
+          }
+        });
+      } catch (e, st) {
+        debugPrint('❌ Error saving session: $e\n$st');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.redAccent,
+              content: Text('Error while saving session'),
+            ),
+          );
+        }
+      }
+    }
+
+      Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        _noteCtrl.clear();
+
+        return showModalBottomSheet<Map<String, dynamic>>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 5,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white12 : Colors.black12,
-                  borderRadius: BorderRadius.circular(3),
-                ),
+          builder: (ctx) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                top: 16,
               ),
-              Text(
-                fromCompletion ? 'Session complete 🎉' : 'End session',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: isDark ? textLight : textDark,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Add a note (optional)',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: _neuShadows(isDark),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
-                  ),
-                ),
-                child: TextField(
-                  controller: _noteCtrl,
-                  maxLines: 3,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: mintPrimary,
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () {
-                    final payload = {
-                      'skill': widget.skillName,
-                      'seconds': _elapsed.inSeconds,
-                      'note': _noteCtrl.text.trim(),
-                      'completed': fromCompletion,
-                      'timestamp': DateTime.now().toIso8601String(),
-                    };
-                    Navigator.pop(ctx, payload);
-                  },
-                  child: const Text(
-                    'Save & Exit',
+                  Text(
+                    fromCompletion ? 'Session complete 🎉' : 'End session',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: isDark ? textLight : textDark,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Add a note (optional)',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: _neuShadows(isDark),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _noteCtrl,
+                      maxLines: 3,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: mintPrimary,
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        final payload = {
+                          'note': _noteCtrl.text.trim(),
+                          'timestamp': DateTime.now().toIso8601String(),
+                        };
+                        Navigator.of(ctx).pop(payload);
+                      },
+                      child: const Text(
+                        'Save & Exit',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                ],
               ),
-              const SizedBox(height: 6),
-            ],
-          ),
+            );
+          },
         );
-      },
-    );
-  }
+      }
+          
+
 
   Future<bool?> _confirmExitDialog() {
     final theme = Theme.of(context);
@@ -248,7 +293,6 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // ---- Top bar ----
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
                 child: Row(
@@ -270,14 +314,11 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
                       ),
                     ),
                     const Spacer(),
-                    const SizedBox(width: 48), // симметрия с кнопкой назад
+                    const SizedBox(width: 48),
                   ],
                 ),
               ),
-
               const SizedBox(height: 10),
-
-              // ---- Ring timer ----
               Expanded(
                 child: Center(
                   child: _RingTimer(
@@ -288,9 +329,7 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 4),
-
               Text(
                 'Goal: ${_format(widget.targetDuration)}',
                 style: TextStyle(
@@ -299,22 +338,19 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
                   color: isDark ? Colors.white70 : Colors.black54,
                 ),
               ),
-                if (_completed)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      "You're done! 🎉",
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.secondary,
-                      ),
+              if (_completed)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    "You're done! 🎉",
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.secondary,
                     ),
                   ),
-
+                ),
               const SizedBox(height: 18),
-
-              // ---- Bottom controls ----
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: _completed
@@ -351,7 +387,9 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
                           ),
                           const SizedBox(width: 16),
                           _RoundMintButton(
-                            icon: _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            icon: _running
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
                             onTap: () => _running ? _pause() : _start(),
                           ),
                         ],
@@ -420,7 +458,6 @@ class _BackNeuroButton extends StatelessWidget {
   }
 }
 
-
 class _RingTimer extends StatelessWidget {
   final double progress;
   final String timeText;
@@ -439,7 +476,7 @@ class _RingTimer extends StatelessWidget {
     final bgTrack = isDark ? Colors.white10 : const Color(0xFFE5EBE5);
 
     return GestureDetector(
-      onTap: onCenterTap, // тап по кругу тоже старт/пауза
+      onTap: onCenterTap,
       child: Container(
         width: 280,
         height: 280,

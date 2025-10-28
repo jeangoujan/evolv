@@ -2,9 +2,20 @@ import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'data/hive_boxes.dart';
+import 'package:hive_flutter/hive_flutter.dart'; // ⬅️ добавь это
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Инициализируем Hive, чтобы можно было удалять боксы
+  await Hive.initFlutter();
+
+  // --- TEMP: очистка старых данных после смены типов (удали после первого удачного запуска) ---
+  try {
+    if (await Hive.boxExists('skills'))   await Hive.deleteBoxFromDisk('skills');
+    if (await Hive.boxExists('sessions')) await Hive.deleteBoxFromDisk('sessions');
+  } catch (_) {}
+  
   await HiveBoxes.init();
   runApp(const EvolvApp());
 }
