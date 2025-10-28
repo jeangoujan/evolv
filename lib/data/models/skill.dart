@@ -18,19 +18,25 @@ class Skill extends HiveObject {
   double totalHours;
 
   @HiveField(4)
-  int colorValue;
+  int currentStreak;
 
   @HiveField(5)
-  int iconCode; // <-- вместо iconCodePoint / iconFontFamily
+  int colorValue;
 
   @HiveField(6)
+  int iconCode; // <-- вместо iconCodePoint / iconFontFamily
+
+  @HiveField(7)
   List<Session> sessions;
+
+
 
   Skill({
     required this.id,
     required this.name,
     required this.goalHours,
     this.totalHours = 0,
+    this.currentStreak = 0,
     required this.colorValue,
     required this.iconCode,
     this.sessions = const [],

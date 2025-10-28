@@ -40,42 +40,69 @@ class SkillRepo {
       await _sessionBox.delete(s.id);
     }
   }
+static int _calculateStreak(List<Session> sessions) {
+  if (sessions.isEmpty) return 0;
+
+  sessions.sort((a, b) => b.date.compareTo(a.date));
+  final today = DateTime.now();
+  int streak = 0;
+
+  for (int i = 0; i < sessions.length; i++) {
+    final diff = today.difference(sessions[i].date).inDays;
+    if (diff == streak) {
+      streak++;
+    } else if (diff > streak) {
+      break;
+    }
+  }
+  return streak;
+}
+
 
   /// Добавить сессию (через SessionTimerScreen)
-  static Future<void> addSession({
-    required int skillId,
-    required double durationMinutes,
-    String note = '',
-  }) async {
-    final skill = _box.get(skillId);
-    if (skill == null) return;
+static Future<void> addSession({
+  required int skillId,
+  required double durationMinutes,
+  String note = '',
+}) async {
+  final skill = _box.get(skillId);
+  if (skill == null) return;
 
-    final sessionId = DateTime.now().millisecondsSinceEpoch;
-    final session = Session(
-      id: sessionId,
-      skillId: skillId,
-      durationMinutes: durationMinutes,
-      date: DateTime.now(),
-      note: note.trim().isEmpty ? null : note.trim(),
-    );
+  final sessionId = DateTime.now().millisecondsSinceEpoch;
+  final session = Session(
+    id: sessionId,
+    skillId: skillId,
+    durationMinutes: durationMinutes,
+    date: DateTime.now(),
+    note: note.trim().isEmpty ? null : note.trim(),
+  );
 
-    // Сохраняем в отдельный Hive box "sessions"
-    await _sessionBox.put(sessionId, session);
+  // Сохраняем в отдельный Hive box "sessions"
+  await _sessionBox.put(sessionId, session);
 
-    // Обновляем навык
-    final addedHours = durationMinutes / 60.0;
-    final updated = Skill(
-      id: skill.id,
-      name: skill.name,
-      goalHours: skill.goalHours,
-      totalHours: (skill.totalHours + addedHours),
-      colorValue: skill.colorValue,
-      iconCode: skill.iconCode,
-      sessions: [...skill.sessions, session],
-    );
+  // === Пересчёт streak ===
+  final allSessions = _sessionBox.values
+      .where((s) => s.skillId == skillId)
+      .toList()
+    ..sort((a, b) => b.date.compareTo(a.date));
 
-    await _box.put(skillId, updated);
-  }
+  final streak = _calculateStreak(allSessions);
+
+  // === Обновляем навык ===
+  final addedHours = durationMinutes / 60.0;
+  final updated = Skill(
+    id: skill.id,
+    name: skill.name,
+    goalHours: skill.goalHours,
+    totalHours: (skill.totalHours + addedHours),
+    colorValue: skill.colorValue,
+    iconCode: skill.iconCode,
+    sessions: [...skill.sessions, session],
+    currentStreak: streak, // 👈 добавили поле streak
+  );
+
+  await _box.put(skillId, updated);
+}
 
   /// Удалить одну сессию (по долгому тапу в SkillDetailScreen)
   static Future<void> deleteSession({
@@ -115,3 +142,4 @@ class SkillRepo {
     await _box.put(skillId, updated);
   }
 }
+

@@ -5,7 +5,7 @@ import '../data/hive_boxes.dart';
 import '../data/models/skill.dart';
 import 'add_skill_screen.dart';
 import 'session_timer_screen.dart';
-import 'skills_detail_screen.dart';
+import 'skill_stats_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -154,12 +154,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => SkillDetailScreen(
-                          skillName: s.name,
-                          hoursDone: s.totalHours,
-                          goalHours: s.goalHours,
-                          skillId: s.id,
-                        ),
+                        builder: (_) => SkillStatsScreen(
+                          skill: s),
                       ),
                     );
                   },
