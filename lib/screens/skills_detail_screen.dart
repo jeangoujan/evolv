@@ -164,7 +164,6 @@ Widget build(BuildContext context) {
                               child: Text(
                                 s.note!,
                                 style: TextStyle(
-                                  fontStyle: FontStyle.italic,
                                   color: isDark
                                       ? Colors.white60
                                       : Colors.black

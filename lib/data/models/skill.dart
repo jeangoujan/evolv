@@ -36,7 +36,7 @@ class Skill extends HiveObject {
     required this.name,
     required this.goalHours,
     this.totalHours = 0,
-    this.currentStreak = 0,
+    this.currentStreak = 1,
     required this.colorValue,
     required this.iconCode,
     this.sessions = const [],

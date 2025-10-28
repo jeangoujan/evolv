@@ -8,174 +8,221 @@ import 'skills_detail_screen.dart';
 
 class SkillStatsScreen extends StatelessWidget {
   final Skill skill;
-
   const SkillStatsScreen({super.key, required this.skill});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final skillBox = HiveBoxes.skillBox();
     final sessionBox = Hive.box<Session>('sessions');
-    final sessions = sessionBox.values
-        .where((s) => s.skillId == skill.id)
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
 
-    final totalMinutes = sessions.fold<double>(0, (sum, s) => sum + s.durationMinutes);
-    final goalProgress = (totalMinutes / 60) / skill.goalHours;
-    final formattedTotal = _formatDuration(totalMinutes);
+    return ValueListenableBuilder(
+      valueListenable: skillBox.listenable(),
+      builder: (context, _, __) {
+        final liveSkill = skillBox.get(skill.id) ?? skill;
 
-    final weekStats = _calculateWeeklyStats(sessions);
-    final last5 = sessions.take(5).toList();
+        return ValueListenableBuilder(
+          valueListenable: sessionBox.listenable(),
+          builder: (context, __, ___) {
+            final sessions = sessionBox.values
+                .where((s) => s.skillId == liveSkill.id)
+                .toList()
+              ..sort((a, b) => b.date.compareTo(a.date));
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F120F) : Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          '${skill.name} Practice',
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w700,
-            color: isDark ? textLight : textDark,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _NeuroStatCard(
-                    label: 'Total Hours',
-                    value: formattedTotal,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _NeuroStatCard(
-                    label: 'Current Streak',
-                    value: '${skill.currentStreak} days',
-                    isDark: isDark,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Goal Progress',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: isDark ? textLight : textDark,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _NeuroProgressBar(
-              progress: goalProgress.clamp(0, 1),
-              label: '${(totalMinutes / 60).toStringAsFixed(1)} / ${skill.goalHours} h',
-              isDark: isDark,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Weekly Progress',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: isDark ? textLight : textDark,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _WeeklySummary(
-              totalMinutes: weekStats['thisWeek'],
-              percentChange: weekStats['percentChange'],
-              daysActive: weekStats['daysActive'],
-              isDark: isDark,
-            ),
-            const SizedBox(height: 30),
-            Text(
-              'Recent Sessions',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: isDark ? textLight : textDark,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (last5.isEmpty)
-              Text(
-                'No sessions yet.',
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-              ),
-            ...last5.map((s) => _DetailedSessionCard(s: s, isDark: isDark)),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: mintPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  elevation: 8,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SkillDetailScreen(
-                        skillName: skill.name,
-                        hoursDone: skill.totalHours,
-                        goalHours: skill.goalHours,
-                        skillId: skill.id,
-                      ),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'All Sessions →',
+            final totalMinutes =
+                sessions.fold<double>(0, (sum, s) => sum + s.durationMinutes);
+            final goalProgress =
+                liveSkill.goalHours == 0 ? 0.0 : (totalMinutes / 60) / liveSkill.goalHours;
+
+            final formattedTotal = _formatDuration(totalMinutes);
+            final weekStats = _calculateWeeklyStats(sessions);
+            final last5 = sessions.take(5).toList();
+
+            final now = DateTime.now();
+            final weekStart = _mondayOf(now);
+            final weekEnd = _sundayOf(now);
+
+            return Scaffold(
+              backgroundColor: isDark ? const Color(0xFF0F120F) : Colors.white,
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                centerTitle: true,
+                title: Text(
+                  '${liveSkill.name} Practice',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    fontSize: 16,
+                    color: isDark ? textLight : textDark,
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Top stats ---
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _NeuroStatCard(
+                            label: 'Total Time',
+                            value: formattedTotal,
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _NeuroStatCard(
+                            label: 'Current Streak',
+                            value: '${liveSkill.currentStreak} days',
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // --- Goal Progress ---
+                    Text(
+                      'Goal Progress',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: isDark ? textLight : textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _NeuroProgressBar(
+                      progress: goalProgress.clamp(0, 1),
+                      label:
+                          '${(totalMinutes / 60).toStringAsFixed(1)} / ${liveSkill.goalHours} h',
+                      isDark: isDark,
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // --- Weekly Progress ---
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Weekly Progress',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: isDark ? textLight : textDark,
+                          ),
+                        ),
+                        Text(
+                          '${_fmtDM(weekStart)} – ${_fmtDM(weekEnd)}',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _WeeklySummary(
+                      totalMinutes: weekStats['thisWeek'],
+                      percentChange: weekStats['percentChange'],
+                      daysActive: weekStats['daysActive'],
+                      isDark: isDark,
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // --- Recent Sessions ---
+                    Text(
+                      'Recent Sessions',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: isDark ? textLight : textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (last5.isEmpty)
+                      Text(
+                        'No sessions yet.',
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ...last5.map((s) => _DetailedSessionCard(s: s, isDark: isDark)),
+                    const SizedBox(height: 24),
+
+                    // --- All Sessions button ---
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: mintPrimary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 8,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SkillDetailScreen(
+                                skillName: liveSkill.name,
+                                hoursDone: liveSkill.totalHours,
+                                goalHours: liveSkill.goalHours,
+                                skillId: liveSkill.id,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'All Sessions →',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-String _formatDuration(double minutes) {
-  if (minutes < 1) {
-    final secs = (minutes * 60).round();
-    return '$secs sec';
-  } else if (minutes < 60) {
-    return '${minutes.floor()} min';
-  } else {
-    final h = minutes ~/ 60;
-    final m = (minutes % 60).round();
-    return '${h}h ${m}min';
+  // ---------- Helpers ----------
+  String _formatDuration(double minutes) {
+    if (minutes < 1) {
+      final secs = (minutes * 60).round();
+      return '$secs sec';
+    } else if (minutes < 60) {
+      return '${minutes.floor()} min';
+    } else {
+      final h = minutes ~/ 60;
+      final m = (minutes % 60).round();
+      return '${h}h ${m}min';
+    }
   }
-}
 
   Map<String, dynamic> _calculateWeeklyStats(List<Session> sessions) {
     final now = DateTime.now();
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfWeek = _mondayOf(now);
     final startOfLastWeek = startOfWeek.subtract(const Duration(days: 7));
 
     double thisWeek = 0;
@@ -183,10 +230,11 @@ String _formatDuration(double minutes) {
     final activeDays = <int>{};
 
     for (final s in sessions) {
-      if (s.date.isAfter(startOfWeek)) {
+      if (!s.date.isBefore(startOfWeek)) {
         thisWeek += s.durationMinutes;
         activeDays.add(s.date.weekday);
-      } else if (s.date.isAfter(startOfLastWeek) && s.date.isBefore(startOfWeek)) {
+      } else if (!s.date.isBefore(startOfLastWeek) &&
+          s.date.isBefore(startOfWeek)) {
         lastWeek += s.durationMinutes;
       }
     }
@@ -204,16 +252,18 @@ String _formatDuration(double minutes) {
   }
 }
 
-// Карточка для Recent Sessions (подробная)
+// ---------- Supporting Components ----------
+
 class _DetailedSessionCard extends StatelessWidget {
   final Session s;
   final bool isDark;
-
   const _DetailedSessionCard({required this.s, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
@@ -235,20 +285,16 @@ class _DetailedSessionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ---- Длительность ----
           Text(
             _formatDuration(s.durationMinutes),
-            style: TextStyle(
+            style: theme.textTheme.titleMedium?.copyWith(
               fontFamily: 'Inter',
               fontWeight: FontWeight.w800,
               fontSize: 18,
               color: isDark ? textLight : textDark,
             ),
           ),
-
           const SizedBox(height: 4),
-
-          // ---- Дата ----
           Text(
             _formatDate(s.date),
             style: TextStyle(
@@ -257,24 +303,18 @@ class _DetailedSessionCard extends StatelessWidget {
               color: isDark ? Colors.white70 : Colors.black54,
             ),
           ),
-
-          // ---- Заметка ----
           if (s.note?.isNotEmpty == true)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  s.note!,
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                    color: isDark
-                        ? Colors.white70
-                        : Colors.black.withOpacity(0.65),
-                  ),
+              child: Text(
+                s.note!,
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  color:
+                      isDark ? Colors.white70 : Colors.black.withOpacity(0.65),
                 ),
               ),
             ),
@@ -282,37 +322,28 @@ class _DetailedSessionCard extends StatelessWidget {
       ),
     );
   }
-}
 
-/// ---------- Форматирование ----------
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
-String _formatDuration(double minutes) {
-  if (minutes < 1) {
-    final secs = (minutes * 60).round();
-    return '$secs sec';
-  } else if (minutes < 60) {
-    return '${minutes.floor()} min';
-  } else {
-    final h = minutes ~/ 60;
-    final m = (minutes % 60).round();
-    return '${h}h ${m}min';
+  String _formatDuration(double minutes) {
+    if (minutes < 1) {
+      final secs = (minutes * 60).round();
+      return '$secs sec';
+    } else if (minutes < 60) {
+      return '${minutes.floor()} min';
+    } else {
+      final h = minutes ~/ 60;
+      final m = (minutes % 60).round();
+      return '${h}h ${m}min';
+    }
   }
 }
-
-String _formatDate(DateTime d) {
-  return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-}
-
-
-
-
-// ---------- COMPONENTS ----------
 
 class _NeuroStatCard extends StatelessWidget {
   final String label;
   final String value;
   final bool isDark;
-
   const _NeuroStatCard({
     required this.label,
     required this.value,
@@ -326,31 +357,18 @@ class _NeuroStatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF181C18) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
-                  offset: const Offset(6, 6),
-                  blurRadius: 14,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.08),
-                  offset: const Offset(-6, -6),
-                  blurRadius: 14,
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  offset: const Offset(6, 6),
-                  blurRadius: 14,
-                ),
-                const BoxShadow(
-                  color: Colors.white,
-                  offset: Offset(-6, -6),
-                  blurRadius: 14,
-                ),
-              ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.55 : 0.1),
+            offset: const Offset(6, 6),
+            blurRadius: 14,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(isDark ? 0.08 : 0.9),
+            offset: const Offset(-6, -6),
+            blurRadius: 14,
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -377,17 +395,16 @@ class _NeuroStatCard extends StatelessWidget {
   }
 }
 
+// Progress bar
 class _NeuroProgressBar extends StatelessWidget {
   final double progress;
   final String label;
   final bool isDark;
-
   const _NeuroProgressBar({
     required this.progress,
     required this.label,
     required this.isDark,
   });
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -432,12 +449,12 @@ class _NeuroProgressBar extends StatelessWidget {
   }
 }
 
+// Weekly summary
 class _WeeklySummary extends StatelessWidget {
   final double totalMinutes;
   final double? percentChange;
   final Set<int> daysActive;
   final bool isDark;
-
   const _WeeklySummary({
     required this.totalMinutes,
     required this.percentChange,
@@ -472,14 +489,6 @@ class _WeeklySummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This Week',
-            style: TextStyle(
-              fontFamily: 'Inter',
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
             formatted,
             style: TextStyle(
               fontFamily: 'Inter',
@@ -494,7 +503,7 @@ class _WeeklySummary extends StatelessWidget {
                 : '${percentChange! >= 0 ? '+' : ''}${percentChange!.toStringAsFixed(1)}%',
             style: TextStyle(
               color: percentChange == null
-                  ? Colors.white38
+                  ? (isDark ? Colors.white38 : Colors.black26)
                   : (percentChange! >= 0 ? mintPrimary : Colors.redAccent),
               fontFamily: 'Inter',
               fontWeight: FontWeight.w600,
@@ -509,7 +518,9 @@ class _WeeklySummary extends StatelessWidget {
                 children: [
                   Icon(
                     active ? Icons.check_circle : Icons.circle_outlined,
-                    color: active ? mintPrimary : Colors.white24,
+                    color: active
+                        ? mintPrimary
+                        : (isDark ? Colors.white24 : Colors.black12),
                     size: 22,
                   ),
                   const SizedBox(height: 4),
@@ -530,78 +541,26 @@ class _WeeklySummary extends StatelessWidget {
   }
 
   String _formatDuration(double minutes) {
-    final h = (minutes / 60).floor();
-    final m = (minutes % 60).round();
-    if (h == 0 && m == 0) return '0 min';
-    if (h == 0) return '$m min';
-    return '${h}h ${m}min';
+    if (minutes < 1) {
+      final secs = (minutes * 60).round();
+      return '$secs sec';
+    } else if (minutes < 60) {
+      return '${minutes.floor()} min';
+    } else {
+      final h = minutes ~/ 60;
+      final m = (minutes % 60).round();
+      return '${h}h ${m}min';
+    }
   }
 }
 
-class _RecentSessionCard extends StatelessWidget {
-  final Session s;
-  final bool isDark;
-
-  const _RecentSessionCard({required this.s, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF181C18) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.55 : 0.1),
-            offset: const Offset(6, 6),
-            blurRadius: 14,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(isDark ? 0.08 : 0.9),
-            offset: const Offset(-6, -6),
-            blurRadius: 14,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            _formatDate(s.date),
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w600,
-              color: isDark ? textLight : textDark,
-            ),
-          ),
-          Text(
-            _formatDuration(s.durationMinutes),
-            style: TextStyle(
-              color: isDark ? Colors.white70 : Colors.black54,
-              fontFamily: 'Inter',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime d) {
-    final now = DateTime.now();
-    if (d.year == now.year && d.month == now.month && d.day == now.day) return 'Today';
-    if (d.year == now.year &&
-        d.month == now.month &&
-        d.day == now.day - 1) return 'Yesterday';
-    return '${d.day}.${d.month}.${d.year}';
-  }
-
-  String _formatDuration(double minutes) {
-    final h = (minutes / 60).floor();
-    final m = (minutes % 60).round();
-    if (h == 0 && m == 0) return '0 min';
-    if (h == 0) return '$m min';
-    return '${h}h ${m}min';
-  }
+// ---------- Helpers ----------
+DateTime _mondayOf(DateTime d) {
+  final delta = (d.weekday + 6) % 7;
+  return DateTime(d.year, d.month, d.day).subtract(Duration(days: delta));
 }
+
+DateTime _sundayOf(DateTime d) => _mondayOf(d).add(const Duration(days: 6));
+
+String _fmtDM(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
