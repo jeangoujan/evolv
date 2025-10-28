@@ -44,12 +44,29 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
     super.dispose();
   }
 
-  Future<bool> _onWillPop() async {
-    if (!_running) return true;
-    _pause();
-    final shouldExit = await _confirmExitDialog();
-    return shouldExit ?? false;
-  }
+Future<bool> _onWillPop() async {
+  final shouldExit = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Exit session?'),
+      content: const Text('Your progress for this session will be lost.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text(
+            'Exit',
+            style: TextStyle(color: Colors.redAccent),
+          ),
+        ),
+      ],
+    ),
+  );
+  return shouldExit ?? false;
+}
 
   void _start() {
     if (_running) return;
@@ -281,126 +298,144 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+@override
+Widget build(BuildContext context) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                child: Row(
-                  children: [
-                    _BackNeuroButton(
-                      onPressed: () async {
-                        final shouldPop = await _onWillPop();
-                        if (shouldPop && mounted) Navigator.pop(context);
-                      },
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${widget.skillName} Practice',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
-                        color: isDark ? textLight : textDark,
-                      ),
-                    ),
-                    const Spacer(),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: Center(
-                  child: _RingTimer(
-                    progress: _progress,
-                    timeText: _format(_elapsed),
-                    isDark: isDark,
-                    onCenterTap: () => _running ? _pause() : _start(),
+  return PopScope(
+    canPop: false, // ❗ запретить автоматический pop, пока не подтвердит
+    onPopInvokedWithResult: (didPop, result) async {
+      if (didPop) return;
+
+      // если идёт сессия — спрашиваем подтверждение
+      if (_running) {
+        _pause();
+        final shouldExit = await _onWillPop();
+        if (shouldExit && context.mounted) Navigator.of(context).pop();
+      } else {
+        // если не идёт — просто выходим
+        if (context.mounted) Navigator.of(context).pop();
+      }
+    },
+    child: Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: Row(
+                children: [
+                  _BackNeuroButton(
+                    onPressed: () async {
+                      if (_running) {
+                        _pause();
+                        final shouldExit = await _onWillPop();
+                        if (shouldExit && mounted) Navigator.pop(context);
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
                   ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Goal: ${_format(widget.targetDuration)}',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-              ),
-              if (_completed)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    "You're done! 🎉",
+                  const Spacer(),
+                  Text(
+                    '${widget.skillName} Practice',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.secondary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                      color: isDark ? textLight : textDark,
                     ),
                   ),
+                  const Spacer(),
+                  const SizedBox(width: 48),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Center(
+                child: _RingTimer(
+                  progress: _progress,
+                  timeText: _format(_elapsed),
+                  isDark: isDark,
+                  onCenterTap: () => _running ? _pause() : _start(),
                 ),
-              const SizedBox(height: 18),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Goal: ${_format(widget.targetDuration)}',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            if (_completed)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: _completed
-                    ? SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: mintPrimary,
-                            elevation: 10,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(26),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  "You're done! 🎉",
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 18),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: _completed
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: mintPrimary,
+                          elevation: 10,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(26),
                           ),
-                          onPressed: () => _endSession(fromCompletion: true),
-                          child: const Text(
-                            'Session Complete',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: () => _endSession(fromCompletion: true),
+                        child: const Text(
+                          'Session Complete',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            fontSize: 18,
                           ),
                         ),
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: _NeuroPillButton(
-                              label: 'End Session',
-                              onTap: () => _endSession(fromCompletion: false),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          _RoundMintButton(
-                            icon: _running
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            onTap: () => _running ? _pause() : _start(),
-                          ),
-                        ],
                       ),
-              ),
-            ],
-          ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: _NeuroPillButton(
+                            label: 'End Session',
+                            onTap: () => _endSession(fromCompletion: false),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        _RoundMintButton(
+                          icon: _running
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          onTap: () => _running ? _pause() : _start(),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _format(Duration d) {
     final h = d.inHours.toString().padLeft(2, '0');

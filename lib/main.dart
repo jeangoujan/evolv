@@ -11,11 +11,11 @@ void main() async {
   await Hive.initFlutter();
 
   // --- TEMP: очистка старых данных после смены типов (удали после первого удачного запуска) ---
-  try {
-    if (await Hive.boxExists('skills'))   await Hive.deleteBoxFromDisk('skills');
-    if (await Hive.boxExists('sessions')) await Hive.deleteBoxFromDisk('sessions');
-  } catch (_) {}
-  
+  // try {
+  //   if (await Hive.boxExists('skills'))   await Hive.deleteBoxFromDisk('skills');
+  //   if (await Hive.boxExists('sessions')) await Hive.deleteBoxFromDisk('sessions');
+  // } catch (_) {}
+
   await HiveBoxes.init();
   runApp(const EvolvApp());
 }

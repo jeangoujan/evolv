@@ -167,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
+                        fullscreenDialog: false,
                         builder: (_) => SessionTimerScreen(
                           skillName: s.name,
                           skillId: s.id,
