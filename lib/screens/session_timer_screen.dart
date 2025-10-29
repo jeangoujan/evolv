@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../data/hive_boxes.dart';
 import '../data/models/session.dart';
@@ -16,20 +17,22 @@ class SessionTimerScreen extends StatefulWidget {
     super.key,
     required this.skillName,
     required this.skillId,
-    this.targetDuration = const Duration(seconds: 120), // ← тестовый таймер
+    this.targetDuration = const Duration(hours: 1, minutes: 30),
   });
 
   @override
   State<SessionTimerScreen> createState() => _SessionTimerScreenState();
 }
 
-class _SessionTimerScreenState extends State<SessionTimerScreen> {
-  Timer? _timer;
+class _SessionTimerScreenState extends State<SessionTimerScreen>
+    with WidgetsBindingObserver {
+  Timer? _ticker;
+  DateTime? _startTime;
   Duration _elapsed = Duration.zero;
   bool _running = false;
   bool _completed = false;
-
   final TextEditingController _noteCtrl = TextEditingController();
+  final _audioPlayer = AudioPlayer();
 
   double get _progress {
     final total = widget.targetDuration.inMilliseconds;
@@ -38,49 +41,39 @@ class _SessionTimerScreenState extends State<SessionTimerScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
-    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker?.cancel();
     _noteCtrl.dispose();
     super.dispose();
   }
 
-Future<bool> _onWillPop() async {
-  final shouldExit = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('Exit session?'),
-      content: const Text('Your progress for this session will be lost.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text(
-            'Exit',
-            style: TextStyle(color: Colors.redAccent),
-          ),
-        ),
-      ],
-    ),
-  );
-  return shouldExit ?? false;
-}
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _running && _startTime != null) {
+      setState(() {
+        _elapsed = DateTime.now().difference(_startTime!);
+        if (_elapsed >= widget.targetDuration) _onCompleted();
+      });
+    }
+  }
 
   void _start() {
     if (_running) return;
+    _startTime ??= DateTime.now().subtract(_elapsed);
     _running = true;
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || !_running) return;
       setState(() {
-        _elapsed += const Duration(seconds: 1);
-        if (_elapsed >= widget.targetDuration) {
-          _completed = true;
-          _running = false;
-          _timer?.cancel();
-          HapticFeedback.mediumImpact();
-        }
+        _elapsed = DateTime.now().difference(_startTime!);
+        if (_elapsed >= widget.targetDuration) _onCompleted();
       });
     });
     setState(() {});
@@ -88,354 +81,359 @@ Future<bool> _onWillPop() async {
 
   void _pause() {
     _running = false;
-    _timer?.cancel();
+    _ticker?.cancel();
     setState(() {});
   }
 
-    Future<void> _endSession({required bool fromCompletion}) async {
-  _pause();
+  void _onCompleted() {
+    _completed = true;
+    _running = false;
+    _ticker?.cancel();
+    HapticFeedback.mediumImpact();
+    _playFinishSound();
+    setState(() {});
+  }
 
-      // открываем модалку и ждём данные
-      final result = await _openNoteSheet(fromCompletion: fromCompletion);
+  Future<void> _playFinishSound() async {
+    try {
+      await _audioPlayer.play(
+        AssetSource('sounds/music-with-completed-mission-from-gta-san-andreas.mp3'),
+      );
+    } catch (e) {
+      debugPrint('Sound error: $e');
+    }
+  }
 
-      // если модалку просто закрыли — ничего не делаем
-      if (!mounted || result == null) return;
+  Future<void> _endSession({required bool fromCompletion}) async {
+    _pause();
+    final result = await _openNoteSheet(fromCompletion: fromCompletion);
+    if (!mounted || result == null) return;
 
-      try {
-        final now = DateTime.now();
-        final durationMinutes = _elapsed.inSeconds < 60
-            ? _elapsed.inSeconds / 60.0 // хранить в минутах с дробью
-            : _elapsed.inMinutes.toDouble();
-        final sessionBox = Hive.box<Session>('sessions');
-        final skillBox = HiveBoxes.skillBox();
+    try {
+      final now = DateTime.now();
+      final duration = _startTime != null
+          ? now.difference(_startTime!)
+          : _elapsed;
 
-        final safeId = now.microsecondsSinceEpoch % 0xFFFFFFFF;
+      final durationMinutes = duration.inSeconds < 60
+          ? duration.inSeconds / 60.0
+          : duration.inMinutes.toDouble();
 
-        final session = Session(
-          id: safeId,
-          skillId: widget.skillId,
-          durationMinutes: durationMinutes,
-          date: now,
-          note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      final sessionBox = Hive.box<Session>('sessions');
+      final skillBox = HiveBoxes.skillBox();
+
+      final safeId = now.microsecondsSinceEpoch % 0xFFFFFFFF;
+      final session = Session(
+        id: safeId,
+        skillId: widget.skillId,
+        durationMinutes: durationMinutes,
+        date: now,
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+      );
+      await sessionBox.put(session.id, session);
+
+      final skill = skillBox.get(widget.skillId);
+      if (skill != null) {
+        skill.totalHours += durationMinutes / 60.0;
+        await skill.save();
+      }
+
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop(true);
+        }
+      });
+    } catch (e, st) {
+      debugPrint('❌ Error saving session: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text('Error while saving session'),
+          ),
         );
-
-        await sessionBox.put(session.id, session);
-
-        final skill = skillBox.get(widget.skillId);
-        if (skill != null) {
-          skill.totalHours += durationMinutes / 60.0;
-          await skill.save();
-        }
-
-        // 🩵 безопасный pop после завершения bottom sheet
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted && Navigator.canPop(context)) {
-            Navigator.of(context).pop(true);
-          }
-        });
-      } catch (e, st) {
-        debugPrint('❌ Error saving session: $e\n$st');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Colors.redAccent,
-              content: Text('Error while saving session'),
-            ),
-          );
-        }
       }
     }
+  }
 
-      Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
-        final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
-        _noteCtrl.clear();
-
-        return showModalBottomSheet<Map<String, dynamic>>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          builder: (ctx) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-                top: 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 5,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white12 : Colors.black12,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  Text(
-                    fromCompletion ? 'Session complete 🎉' : 'End session',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                      color: isDark ? textLight : textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Add a note (optional)',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: _neuShadows(isDark),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
-                      ),
-                    ),
-                    child: TextField(
-                      controller: _noteCtrl,
-                      maxLines: 3,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: mintPrimary,
-                        elevation: 8,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        final payload = {
-                          'note': _noteCtrl.text.trim(),
-                          'timestamp': DateTime.now().toIso8601String(),
-                        };
-                        Navigator.of(ctx).pop(payload);
-                      },
-                      child: const Text(
-                        'Save & Exit',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
-              ),
-            );
-          },
-        );
-      }
-          
-
-
-  Future<bool?> _confirmExitDialog() {
+  Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return showDialog<bool>(
+    _noteCtrl.clear();
+
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            top: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              Text(
+                fromCompletion ? 'Session complete 🎉' : 'End session',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: isDark ? textLight : textDark,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add a note (optional)',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: _neuShadows(isDark),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF232823)
+                        : const Color(0xFFE7ECE7),
+                  ),
+                ),
+                child: TextField(
+                  controller: _noteCtrl,
+                  maxLines: 3,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: mintPrimary,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    final payload = {
+                      'note': _noteCtrl.text.trim(),
+                      'timestamp': DateTime.now().toIso8601String(),
+                    };
+                    Navigator.of(ctx).pop(payload);
+                  },
+                  child: const Text(
+                    'Save & Exit',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _onWillPop() async {
+    final shouldExit = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
-        title: Text(
-          'Exit session?',
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w700,
-            color: isDark ? textLight : textDark,
-          ),
-        ),
-        content: Text(
-          'The timer is still running. Do you want to exit?',
-          style: TextStyle(
-            fontFamily: 'Inter',
-            color: isDark ? Colors.white70 : Colors.black87,
-          ),
-        ),
+        title: const Text('Exit session?'),
+        content: const Text('Your progress for this session will be lost.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes, exit'),
+            child: const Text(
+              'Exit',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
     );
+    return shouldExit ?? false;
   }
 
-@override
-Widget build(BuildContext context) {
-  final theme = Theme.of(context);
-  final isDark = theme.brightness == Brightness.dark;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-  return PopScope(
-    canPop: false, // ❗ запретить автоматический pop, пока не подтвердит
-    onPopInvokedWithResult: (didPop, result) async {
-      if (didPop) return;
-
-      // если идёт сессия — спрашиваем подтверждение
-      if (_running) {
-        _pause();
-        final shouldExit = await _onWillPop();
-        if (shouldExit && context.mounted) Navigator.of(context).pop();
-      } else {
-        // если не идёт — просто выходим
-        if (context.mounted) Navigator.of(context).pop();
-      }
-    },
-    child: Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-              child: Row(
-                children: [
-                  _BackNeuroButton(
-                    onPressed: () async {
-                      if (_running) {
-                        _pause();
-                        final shouldExit = await _onWillPop();
-                        if (shouldExit && mounted) Navigator.pop(context);
-                      } else {
-                        Navigator.pop(context);
-                      }
-                    },
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_running) {
+          _pause();
+          final ok = await _onWillPop();
+          if (ok && context.mounted) Navigator.of(context).pop();
+        } else {
+          if (context.mounted) Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                child: Row(
+                  children: [
+                    _BackNeuroButton(
+                      onPressed: () async {
+                        if (_running) {
+                          _pause();
+                          final shouldExit = await _onWillPop();
+                          if (shouldExit && mounted) Navigator.pop(context);
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${widget.skillName} Practice',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                        color: isDark ? textLight : textDark,
+                      ),
+                    ),
+                    const Spacer(),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Center(
+                  child: _RingTimer(
+                    progress: _progress,
+                    timeText: _format(_elapsed),
+                    isDark: isDark,
+                    onCenterTap: () => _running ? _pause() : _start(),
                   ),
-                  const Spacer(),
-                  Text(
-                    '${widget.skillName} Practice',
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Goal: ${_format(widget.targetDuration)}',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              if (_completed)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    "You're done! 🎉",
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                      color: isDark ? textLight : textDark,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.secondary,
                     ),
                   ),
-                  const Spacer(),
-                  const SizedBox(width: 48),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: Center(
-                child: _RingTimer(
-                  progress: _progress,
-                  timeText: _format(_elapsed),
-                  isDark: isDark,
-                  onCenterTap: () => _running ? _pause() : _start(),
                 ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Goal: ${_format(widget.targetDuration)}',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white70 : Colors.black54,
-              ),
-            ),
-            if (_completed)
+              const SizedBox(height: 18),
               Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  "You're done! 🎉",
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.secondary,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 18),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              child: _completed
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: mintPrimary,
-                          elevation: 10,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(26),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                child: _completed
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: mintPrimary,
+                            elevation: 10,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(26),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        onPressed: () => _endSession(fromCompletion: true),
-                        child: const Text(
-                          'Session Complete',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontSize: 18,
+                          onPressed: () =>
+                              _endSession(fromCompletion: true),
+                          child: const Text(
+                            'Session Complete',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: _NeuroPillButton(
+                              label: 'End Session',
+                              onTap: () =>
+                                  _endSession(fromCompletion: false),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          _RoundMintButton(
+                            icon: _running
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            onTap: () => _running ? _pause() : _start(),
+                          ),
+                        ],
                       ),
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: _NeuroPillButton(
-                            label: 'End Session',
-                            onTap: () => _endSession(fromCompletion: false),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        _RoundMintButton(
-                          icon: _running
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          onTap: () => _running ? _pause() : _start(),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   String _format(Duration d) {
     final h = d.inHours.toString().padLeft(2, '0');

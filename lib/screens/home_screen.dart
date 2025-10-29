@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (_) => SessionTimerScreen(
                           skillName: s.name,
                           skillId: s.id,
-                          targetDuration: const Duration(seconds: 10), // тест
+                          targetDuration: const Duration(hours: 1, minutes: 30), // тест
                         ),
                       ),
                     );
