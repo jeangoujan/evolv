@@ -65,19 +65,29 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
   }
 
   void _start() {
-    if (_running) return;
-    _startTime ??= DateTime.now().subtract(_elapsed);
-    _running = true;
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || !_running) return;
-      setState(() {
-        _elapsed = DateTime.now().difference(_startTime!);
-        if (_elapsed >= widget.targetDuration) _onCompleted();
-      });
+  if (_running) return;
+  _startTime ??= DateTime.now().subtract(_elapsed);
+  _running = true;
+  _ticker?.cancel();
+  _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+    if (!mounted || !_running || _startTime == null) return;
+
+    final diff = DateTime.now().difference(_startTime!);
+
+    setState(() {
+      // ограничиваем _elapsed до целевого времени
+      _elapsed = diff >= widget.targetDuration
+          ? widget.targetDuration
+          : diff;
     });
-    setState(() {});
-  }
+
+    // Если достигли лимита — останавливаем
+    if (diff >= widget.targetDuration) {
+      _onCompleted();
+    }
+  });
+  setState(() {});
+}
 
   void _pause() {
     _running = false;
@@ -86,6 +96,7 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
   }
 
   void _onCompleted() {
+    if (_completed) return;
     _completed = true;
     _running = false;
     _ticker?.cancel();
