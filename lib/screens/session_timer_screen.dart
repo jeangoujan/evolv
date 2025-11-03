@@ -10,6 +10,7 @@ import '../data/hive_boxes.dart';
 import '../data/models/session.dart';
 import '../data/models/skill.dart';
 import '../theme/app_theme.dart';
+import '../data/skill_repo.dart';
 
 class SessionTimerScreen extends StatefulWidget {
   final int skillId;
@@ -20,7 +21,7 @@ class SessionTimerScreen extends StatefulWidget {
     super.key,
     required this.skillName,
     required this.skillId,
-    this.targetDuration = const Duration(seconds: 15),
+    this.targetDuration = const Duration(minutes: 1),
   });
 
   @override
@@ -167,42 +168,46 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
     }
   }
 
-  Future<void> _endSession({required bool fromCompletion}) async {
-    _pause();
-    final result = await _openNoteSheet(fromCompletion: fromCompletion);
-    if (!mounted || result == null) return;
+Future<void> _endSession({required bool fromCompletion}) async {
+  _pause();
+  final result = await _openNoteSheet(fromCompletion: fromCompletion);
+  if (!mounted || result == null) return;
 
-    try {
-      final now = DateTime.now();
-      final duration = _elapsed;
-      final durationMinutes = duration.inSeconds < 60
-          ? duration.inSeconds / 60.0
-          : duration.inMinutes.toDouble();
+  try {
+    final now = DateTime.now();
+    final duration = _startTime != null ? now.difference(_startTime!) : _elapsed;
 
-      final sessionBox = Hive.box<Session>('sessions');
-      final skillBox = HiveBoxes.skillBox();
+    final durationMinutes = duration.inSeconds < 60
+        ? duration.inSeconds / 60.0
+        : duration.inMinutes.toDouble();
 
-      final safeId = now.microsecondsSinceEpoch % 0xFFFFFFFF;
-      final session = Session(
-        id: safeId,
-        skillId: widget.skillId,
-        durationMinutes: durationMinutes,
-        date: now,
-        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      );
-      await sessionBox.put(session.id, session);
+    // ✅ сохраняем сессию и пересчитываем streak через SkillRepo
+    await SkillRepo.addSession(
+      skillId: widget.skillId,
+      durationMinutes: durationMinutes,
+      note: _noteCtrl.text.trim(),
+    );
 
-      final skill = skillBox.get(widget.skillId);
-      if (skill != null) {
-        skill.totalHours += durationMinutes / 60.0;
-        await skill.save();
+    debugPrint('✅ Session added for skillId=${widget.skillId} (${durationMinutes.toStringAsFixed(2)} min)');
+
+    // ⏳ короткая задержка перед возвратом, чтобы Hive успел обновиться
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop(true);
       }
-
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e, st) {
-      debugPrint('❌ Error saving session: $e\n$st');
+    });
+  } catch (e, st) {
+    debugPrint('❌ Error saving session: $e\n$st');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('Error while saving session'),
+        ),
+      );
     }
   }
+}
 
   Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
     final theme = Theme.of(context);

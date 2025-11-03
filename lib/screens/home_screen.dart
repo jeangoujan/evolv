@@ -6,6 +6,7 @@ import '../data/models/skill.dart';
 import 'add_skill_screen.dart';
 import 'session_timer_screen.dart';
 import 'skill_stats_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final Box<Skill> skillBox;
+  final Map<int, double> _previousHours = {}; // для анимации пульса
 
   @override
   void initState() {
@@ -41,11 +43,64 @@ class _HomeScreenState extends State<HomeScreen> {
             color: isDark ? textLight : textDark,
           ),
         ),
-      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 14),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF1F241F) : Colors.white,
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF232823)
+                      : const Color(0xFFE7ECE7),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark
+                        ? Colors.black.withOpacity(0.55)
+                        : Colors.black.withOpacity(0.10),
+                    offset: const Offset(4, 4),
+                    blurRadius: 10,
+                  ),
+                  BoxShadow(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.07)
+                        : Colors.white,
+                    offset: const Offset(-3, -3),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.settings_rounded,
+                size: 22,
+                color: mintPrimary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+      
       body: ValueListenableBuilder(
         valueListenable: skillBox.listenable(),
         builder: (context, Box<Skill> box, _) {
           final skills = box.values.toList();
+          print('📦 Skills from Hive:');
+          for (final s in skills) {
+            print('   ${s.name}: ${s.totalHours.toStringAsFixed(2)} h');
+          }
 
           if (skills.isEmpty) {
             return Center(
@@ -59,126 +114,165 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-            itemCount: skills.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
-            itemBuilder: (context, i) {
-              final s = skills[i];
-              return GestureDetector(
-              onLongPress: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
-                    title: Text(
-                      'Delete "${s.name}"?',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                    content: Text(
-                      'This will remove the skill and all its sessions.',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        color: isDark ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: isDark ? Colors.grey[400] : Colors.black87,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text(
-                          'Delete',
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: ListView.separated(
+              key: ValueKey(skills.length),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+              itemCount: skills.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, i) {
+                final s = skills[i];
+
+                // 🔄 Проверяем, выросло ли количество часов
+                final prev = _previousHours[s.id] ?? s.totalHours;
+                final increased = s.totalHours > prev;
+                _previousHours[s.id] = s.totalHours;
+
+                // 🧮 Формируем красивый текст для часов
+                // 🧠 Теперь считаем реальное время по всем сессиям из Hive
+                final sessionBox = HiveBoxes.sessionBox();
+                final sessionsForSkill =
+                    sessionBox.values.where((sess) => sess.skillId == s.id).toList();
+
+                final totalMinutes = sessionsForSkill.fold<double>(
+                  0,
+                  (sum, sess) => sum + sess.durationMinutes,
                 );
+                final totalHours = totalMinutes / 60.0;
 
-                if (confirm == true) {
-                  // 🧹 Удаляем по ключу Hive, а не по id
-                  await skillBox.deleteAt(i);
+                // Округляем вниз до целого числа
+                final displayHours = totalHours < 1 ? 0 : totalHours.floor();
+                final hoursLabel =
+                    '$displayHours ${displayHours == 1 ? "hour" : "hours"}';
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: Colors.redAccent,
-                        behavior: SnackBarBehavior.floating,
-                        elevation: 8,
-                        margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
-                        shape:
-                            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        content: Center(
-                          child: Text(
-                            '"${s.name}" deleted',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
+                return _AnimatedPulse(
+                  active: increased,
+                  child: GestureDetector(
+                    onLongPress: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          backgroundColor:
+                              isDark ? const Color(0xFF1C201C) : Colors.white,
+                          title: Text(
+                            'Delete "${s.name}"?',
+                            style: TextStyle(
                               fontFamily: 'Inter',
                               fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: Colors.white,
+                              color: isDark ? Colors.white : Colors.black,
                             ),
                           ),
+                          content: Text(
+                            'This will remove the skill and all its sessions.',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              color:
+                                  isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, false),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.grey[400]
+                                      : Colors.black87,
+                                  fontFamily: 'Inter',
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, true),
+                              child: const Text(
+                                'Delete',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                }
+                      );
+
+                      if (confirm == true) {
+                        await skillBox.deleteAt(i);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: Colors.redAccent,
+                              behavior: SnackBarBehavior.floating,
+                              elevation: 8,
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 50, vertical: 40),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              content: Center(
+                                child: Text(
+                                  '"${s.name}" deleted',
+                                  style: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: _SkillCard(
+                      name: s.name,
+                      hoursLabel: hoursLabel,
+                      icon: IconData(s.iconCode,
+                          fontFamily: 'MaterialIcons'),
+                      color: Color(s.colorValue),
+                      onCardTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SkillStatsScreen(skill: s),
+                          ),
+                        );
+                      },
+                      onStartTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            fullscreenDialog: false,
+                            builder: (_) => SessionTimerScreen(
+                              skillName: s.name,
+                              skillId: s.id,
+                              targetDuration:
+                                  const Duration(minutes: 1), // тест
+                            ),
+                          ),
+                        );
+                        setState(() {}); // обновим при возврате
+                      },
+                    ),
+                  ),
+                );
               },
-                child: _SkillCard(
-                  name: s.name,
-                  hours: s.totalHours.toStringAsFixed(0),
-                  icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
-                  color: Color(s.colorValue),
-                  onCardTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SkillStatsScreen(
-                          skill: s),
-                      ),
-                    );
-                  },
-                  onStartTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        fullscreenDialog: false,
-                        builder: (_) => SessionTimerScreen(
-                          skillName: s.name,
-                          skillId: s.id,
-                          targetDuration: const Duration(seconds: 15), // тест
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
+            ),
           );
         },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation:
+          FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _AddSkillFab(
         onPressed: () async {
           final newSkill = await Navigator.push(
@@ -200,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _SkillCard extends StatelessWidget {
   final String name;
-  final String hours;
+  final String hoursLabel;
   final IconData icon;
   final Color color;
   final VoidCallback onCardTap;
@@ -208,7 +302,7 @@ class _SkillCard extends StatelessWidget {
 
   const _SkillCard({
     required this.name,
-    required this.hours,
+    required this.hoursLabel,
     required this.icon,
     required this.color,
     required this.onCardTap,
@@ -219,8 +313,8 @@ class _SkillCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
     final cardColor = isDark ? const Color(0xFF181C18) : Colors.white;
+
     final neuShadows = isDark
         ? [
             BoxShadow(
@@ -252,7 +346,8 @@ class _SkillCard extends StatelessWidget {
         color: cardColor,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+          color:
+              isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
           width: 1,
         ),
         boxShadow: neuShadows,
@@ -261,7 +356,8 @@ class _SkillCard extends StatelessWidget {
         onTap: onCardTap,
         borderRadius: 28,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             children: [
               Container(
@@ -271,31 +367,17 @@ class _SkillCard extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: color.withOpacity(0.85),
                   border: Border.all(
-                    color: isDark ? Colors.white12 : const Color(0xFFE7ECE7),
+                    color:
+                        isDark ? Colors.white12 : const Color(0xFFE7ECE7),
                     width: 1,
                   ),
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
-                            offset: const Offset(2, 2),
-                            blurRadius: 6,
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            offset: const Offset(2, 2),
-                            blurRadius: 6,
-                          ),
-                        ],
                 ),
                 child: Icon(
                   icon,
                   size: 26,
                   color: isDark
-                      ? Color.lerp(
-                          Colors.black, theme.colorScheme.primary, 0.3)!
+                      ? Color.lerp(Colors.black,
+                          theme.colorScheme.primary, 0.3)!
                       : theme.colorScheme.primary,
                 ),
               ),
@@ -314,7 +396,7 @@ class _SkillCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$hours h',
+                      hoursLabel,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontFamily: 'Inter',
                         color: isDark
@@ -340,6 +422,70 @@ class _SkillCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Pulse Animation
+// ---------------------------------------------------------------------------
+
+class _AnimatedPulse extends StatefulWidget {
+  final Widget child;
+  final bool active;
+  const _AnimatedPulse({required this.child, required this.active});
+
+  @override
+  State<_AnimatedPulse> createState() => _AnimatedPulseState();
+}
+
+class _AnimatedPulseState extends State<_AnimatedPulse>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedPulse oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_ctrl.isAnimating) _ctrl.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        final glow = (1 - _ctrl.value) * 0.35;
+        return Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: mintPrimary.withOpacity(glow),
+                blurRadius: 30 * (1 - _ctrl.value),
+                spreadRadius: 2 * (1 - _ctrl.value),
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Остальные вспомогательные классы (_StartPill, _AddSkillFab, _AnimatedTap)
+// ---------------------------------------------------------------------------
+// оставлены без изменений из твоей версии.
 // ---------------------------------------------------------------------------
 // Start button
 // ---------------------------------------------------------------------------

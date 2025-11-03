@@ -43,50 +43,62 @@ class SkillRepo {
   }
 
   /// Добавить сессию (через SessionTimerScreen)
-  static Future<void> addSession({
-    required int skillId,
-    required double durationMinutes,
-    String note = '',
-  }) async {
-    final skill = _box.get(skillId);
-    if (skill == null) return;
-
-    final now = DateTime.now();
-    final sessionId = now.millisecondsSinceEpoch;
-
-    final session = Session(
-      id: sessionId,
-      skillId: skillId,
-      durationMinutes: durationMinutes,
-      date: now,
-      note: note.trim().isEmpty ? null : note.trim(),
-    );
-
-    // --- Сохраняем сессию в Hive ---
-    await _sessionBox.put(sessionId, session);
-
-    // --- Собираем все сессии по этому скиллу ---
-    final updatedSessions = [...skill.sessions, session];
-
-    // --- Пересчитываем streak ---
-    final newStreak = _calculateStreak(updatedSessions);
-
-    // --- Обновляем общее время ---
-    final addedHours = durationMinutes / 60.0;
-
-    final updated = Skill(
-      id: skill.id,
-      name: skill.name,
-      goalHours: skill.goalHours,
-      totalHours: skill.totalHours + addedHours,
-      colorValue: skill.colorValue,
-      iconCode: skill.iconCode,
-      sessions: updatedSessions,
-      currentStreak: newStreak,
-    );
-
-    await _box.put(skillId, updated);
+static Future<void> addSession({
+  required int skillId,
+  required double durationMinutes,
+  String note = '',
+}) async {
+  // 1) Находим реальный KEY бокса по id навыка
+  final key = _box.keys.firstWhere(
+    (k) => _box.get(k)?.id == skillId,
+    orElse: () => null,
+  );
+  if (key == null) {
+    debugPrint('⚠️ SkillRepo.addSession: skillId=$skillId not found in Hive');
+    return;
   }
+
+  final skill = _box.get(key)!;
+
+  // 2) Создаём и сохраняем сессию в sessions-box
+  final now = DateTime.now();
+  final sessionId = now.microsecondsSinceEpoch & 0x7fffffff; // безопасный int
+  final session = Session(
+    id: sessionId,
+    skillId: skillId,
+    durationMinutes: durationMinutes,
+    date: now,
+    note: note.trim().isEmpty ? null : note.trim(),
+  );
+  await _sessionBox.put(sessionId, session);
+
+  // 3) Готовим новый список сессий для навыка (локальная денормализация)
+  final newSessions = [...skill.sessions, session]..sort((a, b) => a.date.compareTo(b.date));
+
+  // 4) Пересчитываем totalHours
+  final addedHours = durationMinutes / 60.0;
+  final newTotal = (skill.totalHours + addedHours);
+
+  // 5) Пересчитываем streak (минимум 1, если была хотя бы одна сессия)
+  final newStreak = _calculateStreak(newSessions);
+
+  // 6) Сохраняем обновлённый навык по НАЙДЕННОМУ ключу
+  final updated = Skill(
+    id: skill.id,
+    name: skill.name,
+    goalHours: skill.goalHours,
+    totalHours: newTotal,
+    currentStreak: newStreak,
+    colorValue: skill.colorValue,
+    iconCode: skill.iconCode,
+    sessions: newSessions,
+  );
+
+  await _box.put(key, updated);
+
+  debugPrint('✅ addSession: "${skill.name}" +${durationMinutes.toStringAsFixed(2)} min '
+      '→ total=${updated.totalHours.toStringAsFixed(2)} h, streak=${updated.currentStreak}');
+}
 
   /// Удалить одну сессию (по долгому тапу)
   static Future<void> deleteSession({

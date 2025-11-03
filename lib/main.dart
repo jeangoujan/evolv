@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'data/hive_boxes.dart';
-import 'package:hive_flutter/hive_flutter.dart'; // ⬅️ добавь это
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Инициализируем Hive, чтобы можно было удалять боксы
   await Hive.initFlutter();
-
-  // --- TEMP: очистка старых данных после смены типов (удали после первого удачного запуска) ---
-  // try {
-  //   if (await Hive.boxExists('skills'))   await Hive.deleteBoxFromDisk('skills');
-  //   if (await Hive.boxExists('sessions')) await Hive.deleteBoxFromDisk('sessions');
-  // } catch (_) {}
-
   await HiveBoxes.init();
-  runApp(const EvolvApp());
+
+  // ✅ Оборачиваем приложение в ChangeNotifierProvider
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const EvolvApp(),
+    ),
+  );
 }
 
 class EvolvApp extends StatelessWidget {
@@ -25,12 +25,15 @@ class EvolvApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Теперь Provider доступен
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       title: 'Evolv',
       debugShowCheckedModeBanner: false,
       theme: evolvLightTheme(),
       darkTheme: evolvDarkTheme(),
-      themeMode: ThemeMode.system, // автоматически по системе
+      themeMode: themeProvider.themeMode, // ← всё работает
       home: const HomeScreen(),
     );
   }
@@ -48,8 +51,7 @@ class EvolvHome extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Welcome to Evolv 👋',
-                style: theme.textTheme.titleMedium),
+            Text('Welcome to Evolv 👋', style: theme.textTheme.titleMedium),
             const SizedBox(height: 16),
             Text(
               'Track your growth.',
