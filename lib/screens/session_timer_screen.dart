@@ -123,6 +123,7 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
     if (_running) return;
     _startTime ??= DateTime.now().subtract(_elapsed);
     _running = true;
+    _playFinishSound();
     _scheduleEndNotification(); // планируем уведомление
 
     _ticker?.cancel();
@@ -405,28 +406,51 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: _completed
-                    ? SizedBox(
-                        width: double.infinity, // ← растягиваем кнопку на всю ширину
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: mintPrimary,
-                            elevation: 10, // чуть поднимаем
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(26),
+                    ? StatefulBuilder(
+                        builder: (context, setState) {
+                          bool pressed = false;
+                          return GestureDetector(
+                            onTapDown: (_) {
+                              setState(() => pressed = true);
+                              HapticFeedback.lightImpact();
+                            },
+                            onTapUp: (_) {
+                              setState(() => pressed = false);
+                              _endSession(fromCompletion: true);
+                            },
+                            onTapCancel: () => setState(() => pressed = false),
+                            child: AnimatedScale(
+                              scale: pressed ? 0.96 : 1.0,
+                              duration: const Duration(milliseconds: 120),
+                              curve: Curves.easeOut,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: mintPrimary, // ✅ всегда зелёная
+                                  borderRadius: BorderRadius.circular(26),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: mintPrimary.withOpacity(0.35),
+                                      blurRadius: 22,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  'Session Complete',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          onPressed: () => _endSession(fromCompletion: true),
-                          child: const Text(
-                            'Session Complete',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
+                          );
+                        },
                       )
                     : Row(
                         children: [
@@ -591,42 +615,73 @@ class _RingTimer extends StatelessWidget {
   }
 }
 
-class _NeuroPillButton extends StatelessWidget {
+class _NeuroPillButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
-  const _NeuroPillButton({required this.label, required this.onTap});
+
+  const _NeuroPillButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_NeuroPillButton> createState() => _NeuroPillButtonState();
+}
+
+class _NeuroPillButtonState extends State<_NeuroPillButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1F241F) : Colors.white,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withOpacity(0.55)
-                  : Colors.black.withOpacity(0.1),
-              offset: const Offset(6, 6),
-              blurRadius: 14,
+      onTapDown: (_) {
+        setState(() => _pressed = true);
+        HapticFeedback.lightImpact(); // 🔸 добавили мягкую вибрацию
+      },
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1F241F) : Colors.white,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color:
+                  isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
             ),
-          ],
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: isDark ? textLight : textDark,
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withOpacity(0.55)
+                    : Colors.black.withOpacity(0.1),
+                offset: const Offset(6, 6),
+                blurRadius: 14,
+              ),
+              BoxShadow(
+                color: isDark
+                    ? Colors.white.withOpacity(0.07)
+                    : Colors.white.withOpacity(0.9),
+                offset: const Offset(-6, -6),
+                blurRadius: 12,
+              ),
+            ],
+          ),
+          child: Text(
+            widget.label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: isDark ? textLight : textDark,
+            ),
           ),
         ),
       ),
