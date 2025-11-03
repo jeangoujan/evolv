@@ -30,9 +30,12 @@ environment:
 dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_local_notifications: ^17.1.2
+  timezone: ^0.9.3
   audioplayers: ^6.0.0
   flutter:
     sdk: flutter
+
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -62,7 +65,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-      - assets/sounds/music-with-completed-mission-from-gta-san-andreas.mp3
+      - assets/sounds/notification-2-269292.mp3
   fonts:
   - family: Inter
     fonts:
