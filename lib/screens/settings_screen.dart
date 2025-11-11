@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_provider.dart';
+import 'backup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -61,7 +62,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingButtonTile(
                     icon: Icons.cloud_outlined,
                     title: 'Data & Backup',
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const BackupScreen()),
+                        );
+                    },
                   ),
                   _SettingDivider(),
                   _SettingButtonTile(

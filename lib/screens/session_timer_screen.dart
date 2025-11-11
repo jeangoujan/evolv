@@ -21,7 +21,7 @@ class SessionTimerScreen extends StatefulWidget {
     super.key,
     required this.skillName,
     required this.skillId,
-    this.targetDuration = const Duration(minutes: 1),
+    this.targetDuration = const Duration(hours: 1, minutes: 30),
   });
 
   @override

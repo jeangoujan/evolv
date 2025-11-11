@@ -257,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               skillName: s.name,
                               skillId: s.id,
                               targetDuration:
-                                  const Duration(minutes: 1), // тест
+                                  const Duration(hours: 1, minutes: 30), // тест
                             ),
                           ),
                         );
