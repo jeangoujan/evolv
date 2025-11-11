@@ -17,24 +17,26 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
   int? _selectedIconIndex;
   int? _selectedColorIndex;
 
+  /// 8 лаконичных иконок — под разные типы навыков
   final List<IconData> _icons = [
-    Icons.music_note,
-    Icons.laptop_mac,
-    Icons.translate,
-    Icons.edit_note,
-    Icons.menu_book,
-    Icons.fitness_center,
-    Icons.code,
-    Icons.brush,
+    Icons.music_note,         // Музыка
+    Icons.code,               // Кодинг / Программирование
+    Icons.psychology,         // Обучение / Навыки
+    Icons.fitness_center,     // Спорт
+    Icons.brush,              // Арт / Дизайн
+    Icons.menu_book,          // Чтение / Образование
+    Icons.language,           // Языки
+    Icons.self_improvement,   // Медитация / Фокус
   ];
 
+  /// 6 пастельных цветов
   final List<Color> _colors = const [
-    Color(0xFFFAC7C3),
-    Color(0xFFB5D8FA),
-    Color(0xFFFBE49E),
-    Color(0xFFCBC7FA),
-    Color(0xFFA3F1D0),
-    Color(0xFFD6D8DB),
+    Color(0xFFFAC7C3), // розовый
+    Color(0xFFB5D8FA), // голубой
+    Color(0xFFFBE49E), // желтый
+    Color(0xFFCBC7FA), // сиреневый
+    Color(0xFFA3F1D0), // мятный
+    Color(0xFF81C784), // зеленый
   ];
 
   @override
@@ -72,7 +74,8 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
           _buildTextField(_nameController, "e.g., Learn Piano", isDark),
           const SizedBox(height: 24),
           _buildLabel("Goal Hours (Optional)", isDark),
-          _buildTextField(_goalController, "e.g., 100", isDark),
+          _buildTextField(_goalController, "e.g., 100", isDark,
+              keyboardType: TextInputType.number),
           const SizedBox(height: 32),
           _buildLabel("Select an Icon", isDark),
           const SizedBox(height: 12),
@@ -88,11 +91,9 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
     );
   }
 
-  // --- Components ---
-
   Widget _buildLabel(String text, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      padding: const EdgeInsets.only(left: 4, bottom: 6),
       child: Text(
         text,
         style: TextStyle(
@@ -105,8 +106,10 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
     );
   }
 
-  Widget _buildTextField(
-      TextEditingController controller, String hint, bool isDark) {
+  Widget _buildTextField(TextEditingController controller, String hint,
+      bool isDark, {
+        TextInputType keyboardType = TextInputType.text,
+      }) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
@@ -126,19 +129,20 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.08),
                   offset: const Offset(4, 4),
-                  blurRadius: 12,
+                  blurRadius: 10,
                 ),
                 const BoxShadow(
                   color: Colors.white,
                   offset: Offset(-4, -4),
-                  blurRadius: 12,
+                  blurRadius: 10,
                 ),
               ],
       ),
       child: TextField(
         controller: controller,
+        keyboardType: keyboardType,
         style: TextStyle(
           fontFamily: 'Inter',
           color: isDark ? Colors.white : Colors.black,
@@ -164,57 +168,56 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
       itemCount: _icons.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
       ),
       itemBuilder: (context, index) {
         final selected = _selectedIconIndex == index;
+        final icon = _icons[index];
 
         return GestureDetector(
           onTap: () => setState(() => _selectedIconIndex = index),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.all(10),
+            duration: const Duration(milliseconds: 160),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF202620)
-                  : const Color(0xFFF9FBF9),
               shape: BoxShape.circle,
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: mintPrimary.withOpacity(0.5),
-                        blurRadius: 25,
-                        spreadRadius: 2,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                        offset: const Offset(3, 3),
-                        blurRadius: 10,
-                      ),
-                      BoxShadow(
-                        color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
-                        offset: const Offset(-3, -3),
-                        blurRadius: 8,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                        offset: const Offset(3, 3),
-                        blurRadius: 10,
-                      ),
-                      BoxShadow(
-                        color: Colors.white.withOpacity(isDark ? 0.05 : 0.9),
-                        offset: const Offset(-3, -3),
-                        blurRadius: 8,
-                      ),
-                    ],
+              color: isDark ? const Color(0xFF1F241F) : Colors.white,
+              border: Border.all(
+                color: selected
+                    ? mintPrimary
+                    : (isDark
+                        ? const Color(0xFF232823)
+                        : const Color(0xFFE7ECE7)),
+                width: selected ? 2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withOpacity(0.55)
+                      : Colors.black.withOpacity(0.08),
+                  offset: const Offset(4, 4),
+                  blurRadius: 10,
+                ),
+                BoxShadow(
+                  color:
+                      isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+                  offset: const Offset(-4, -4),
+                  blurRadius: 8,
+                ),
+                if (selected)
+                  BoxShadow(
+                    color: mintPrimary.withOpacity(0.35),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+              ],
             ),
             child: Icon(
-              _icons[index],
+              icon,
               size: 26,
               color: selected
-                  ? (isDark ? Colors.white : mintPrimary)
-                  : (isDark ? Colors.white70 : Colors.black54),
+                  ? mintPrimary
+                  : (isDark ? Colors.white70 : Colors.black87),
             ),
           ),
         );
@@ -233,38 +236,28 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
           onTap: () => setState(() => _selectedColorIndex = index),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: selected ? 54 : 48,
-            height: selected ? 54 : 48,
+            width: selected ? 44 : 40,
+            height: selected ? 44 : 40,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              boxShadow: isDark
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.7),
-                        offset: const Offset(3, 3),
-                        blurRadius: 8,
-                      ),
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.05),
-                        offset: const Offset(-3, -3),
-                        blurRadius: 8,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        offset: const Offset(4, 4),
-                        blurRadius: 10,
-                      ),
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.9),
-                        offset: const Offset(-4, -4),
-                        blurRadius: 8,
-                      ),
-                    ],
               border:
-                  selected ? Border.all(color: mintPrimary, width: 3) : null,
+                  selected ? Border.all(color: mintPrimary, width: 2.5) : null,
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withOpacity(0.6)
+                      : Colors.black.withOpacity(0.06),
+                  offset: const Offset(3, 3),
+                  blurRadius: 8,
+                ),
+                BoxShadow(
+                  color:
+                      isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+                  offset: const Offset(-3, -3),
+                  blurRadius: 6,
+                ),
+              ],
             ),
           ),
         );
@@ -277,27 +270,19 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: mintPrimary,
         elevation: 10,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
         padding: const EdgeInsets.symmetric(vertical: 16),
       ),
       onPressed: () async {
-        if (_nameController.text.trim().isEmpty) {
+        final name = _nameController.text.trim();
+        if (name.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.black87,
-              elevation: 6,
-              behavior: SnackBarBehavior.floating,
-              margin:
-                  const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-              content: const Center(
+            const SnackBar(
+              content: Center(
                 child: Text(
                   "Please enter a skill name",
-                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontWeight: FontWeight.w600,
@@ -306,26 +291,28 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
                   ),
                 ),
               ),
+              backgroundColor: Colors.black87,
               duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
             ),
           );
           return;
         }
 
-        final name = _nameController.text.trim();
         final goal = int.tryParse(_goalController.text.trim()) ?? 0;
         final icon = _icons[_selectedIconIndex ?? 0];
         final color = _colors[_selectedColorIndex ?? 0];
 
         final newSkill = Skill(
-        id: DateTime.now().millisecondsSinceEpoch, // уникальный ID
-        name: name,
-        goalHours: goal.toDouble(), // double, а не int
-        totalHours: 0,
-        colorValue: color.value,
-        iconCode: icon.codePoint, // ✅ соответствует модели
-        sessions: const [],
-      );
+          id: DateTime.now().millisecondsSinceEpoch,
+          name: name,
+          goalHours: goal.toDouble(),
+          totalHours: 0,
+          currentStreak: 1,
+          colorValue: color.value,
+          iconCode: icon.codePoint,
+          sessions: const [],
+        );
 
         final box = Hive.box<Skill>('skills');
         await box.add(newSkill);
