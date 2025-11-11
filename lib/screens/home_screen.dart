@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
             duration: const Duration(milliseconds: 300),
             child: ListView.separated(
               key: ValueKey(skills.length),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
               itemCount: skills.length,
               separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, i) {
