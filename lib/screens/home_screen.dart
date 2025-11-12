@@ -111,10 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
     valueListenable: skillBox.listenable(),
     builder: (context, Box<Skill> box, _) {
       final skills = box.values.toList();
-      print('📦 Skills from Hive:');
-      for (final s in skills) {
-        print('   ${s.name}: ${s.totalHours.toStringAsFixed(2)} h');
-      }
+      // print('📦 Skills from Hive:');
+      // for (final s in skills) {
+      //   print('   ${s.name}: ${s.totalHours.toStringAsFixed(2)} h');
+      // }
 
       if (skills.isEmpty) {
         return Center(
@@ -163,86 +163,203 @@ class _HomeScreenState extends State<HomeScreen> {
               active: increased,
               child: GestureDetector(
                 onLongPress: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      backgroundColor:
-                          isDark ? const Color(0xFF1C201C) : Colors.white,
-                      title: Text(
-                        'Delete "${s.name}"?',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      content: Text(
-                        'This will remove the skill and all its sessions.',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          color: isDark ? Colors.white70 : Colors.black54,
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color:
-                                  isDark ? Colors.grey[400] : Colors.black87,
-                              fontFamily: 'Inter',
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text(
-                            'Delete',
-                            style: TextStyle(
-                              color: Colors.redAccent,
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_rounded, color: Colors.white70),
+                title: const Text(
+                  'Rename skill',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, 'rename'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.flag_rounded, color: Colors.white70),
+                title: const Text(
+                  'Edit goal hours',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, 'goal'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading:
+                    const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                title: const Text(
+                  'Delete skill',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    color: Colors.redAccent,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, 'delete'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 
-                  if (confirm == true) {
-                    await skillBox.deleteAt(i);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: Colors.redAccent,
-                          behavior: SnackBarBehavior.floating,
-                          elevation: 8,
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 50, vertical: 40),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          content: Center(
-                            child: Text(
-                              '"${s.name}" deleted',
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  }
-                },
+  if (action == 'rename') {
+    final controller = TextEditingController(text: s.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Rename Skill', style: TextStyle(fontFamily: 'Inter')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          decoration: const InputDecoration(hintText: 'Enter new name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty) {
+      s.name = newName.trim();
+      await s.save();
+      setState(() {});
+    }
+  } else if (action == 'goal') {
+    final controller = TextEditingController(text: s.goalHours.toStringAsFixed(0));
+    final newGoal = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Edit Goal Hours', style: TextStyle(fontFamily: 'Inter')),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          decoration: const InputDecoration(hintText: 'Enter goal in hours'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    if (newGoal != null && newGoal.isNotEmpty) {
+      final parsed = double.tryParse(newGoal);
+      if (parsed != null) {
+        s.goalHours = parsed;
+        await s.save();
+        setState(() {});
+      }
+    }
+  } else if (action == 'delete') {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+        title: Text(
+          'Delete "${s.name}"?',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        content: Text(
+          'This will remove the skill and all its sessions.',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? Colors.grey[400] : Colors.black87,
+                fontFamily: 'Inter',
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await skillBox.deleteAt(i);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            elevation: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            content: Center(
+              child: Text(
+                '"${s.name}" deleted',
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+},
                 child: _SkillCard(
                   name: s.name,
                   hoursLabel: hoursLabel,
@@ -693,4 +810,80 @@ class _AnimatedTapState extends State<_AnimatedTap> {
 
   List<BoxShadow> _boost(List<BoxShadow> src, double k) =>
       src.map((s) => s.copyWith(blurRadius: s.blurRadius * k)).toList();
+}
+
+Future<String?> _showRenameDialog(BuildContext context, String oldName, bool isDark) {
+  final controller = TextEditingController(text: oldName);
+  return showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('Rename Skill', style: TextStyle(fontFamily: 'Inter')),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        decoration: const InputDecoration(hintText: 'Enter new name'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+      ],
+    ),
+  );
+}
+
+Future<double?> _showGoalDialog(BuildContext context, double oldGoal, bool isDark) async {
+  final controller = TextEditingController(text: oldGoal.toStringAsFixed(0));
+  final result = await showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('Edit Goal Hours', style: TextStyle(fontFamily: 'Inter')),
+      content: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        decoration: const InputDecoration(hintText: 'Enter goal in hours'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+      ],
+    ),
+  );
+
+  if (result == null || result.isEmpty) return null;
+  return double.tryParse(result);
+}
+
+class _ActionSheetTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionSheetTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Inter',
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
 }
