@@ -1,5 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_provider.dart';
@@ -13,6 +15,87 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  Duration _defaultDuration = const Duration(hours: 1, minutes: 30);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDuration();
+  }
+
+  Future<void> _loadDuration() async {
+    final box = await Hive.openBox('settings');
+    final minutes = box.get('defaultDurationMinutes', defaultValue: 90);
+    setState(() => _defaultDuration = Duration(minutes: minutes));
+  }
+
+  Future<void> _saveDuration(Duration duration) async {
+    final box = await Hive.openBox('settings');
+    await box.put('defaultDurationMinutes', duration.inMinutes);
+  }
+
+  String _formatDuration(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    return '${h}h ${m}m';
+  }
+
+  Future<void> _pickDuration() async {
+    Duration temp = _defaultDuration;
+    final result = await showModalBottomSheet<Duration>(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SizedBox(
+        height: 280,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Text(
+              'Select Default Duration',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? textLight
+                    : textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: CupertinoTimerPicker(
+                mode: CupertinoTimerPickerMode.hm,
+                initialTimerDuration: _defaultDuration,
+                onTimerDurationChanged: (v) => temp = v,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, temp),
+              child: Text(
+                'Save',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  color: mintPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() => _defaultDuration = result);
+      _saveDuration(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -52,6 +135,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     },
                   ),
+                  _SettingDivider(),
+                  _SettingButtonTile(
+                    icon: Icons.timer_outlined,
+                    title: 'Default Session Duration',
+                    subtitle: _formatDuration(_defaultDuration),
+                    onTap: _pickDuration,
+                  ),
                 ],
               ),
             ),
@@ -64,9 +154,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Data & Backup',
                     onTap: () {
                       Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const BackupScreen()),
-                        );
+                        context,
+                        MaterialPageRoute(builder: (_) => const BackupScreen()),
+                      );
                     },
                   ),
                   _SettingDivider(),
@@ -132,8 +222,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor:
-            Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1C201C) : Colors.white,
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1C201C)
+            : Colors.white,
         title: const Text(
           'About Evolv',
           style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700),
@@ -155,8 +246,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// Карточка в стиле HomeScreen (_SkillCard неоморфный стиль)
+// ОСТАЛЬНЫЕ КОМПОНЕНТЫ (без изменений, только добавлен subtitle)
 // ---------------------------------------------------------------------------
+
 class _NeuroCard extends StatelessWidget {
   final Widget child;
   const _NeuroCard({required this.child});
@@ -206,9 +298,6 @@ class _NeuroCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Switch Tile (в стиле SkillCard + _AnimatedTap)
-// ---------------------------------------------------------------------------
 class _SettingSwitchTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -249,22 +338,22 @@ class _SettingSwitchTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Кнопка (в стиле HomeScreen карточек)
-// ---------------------------------------------------------------------------
 class _SettingButtonTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback onTap;
 
   const _SettingButtonTile({
     required this.icon,
     required this.title,
+    this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return _AnimatedTap(
       onTap: onTap,
       borderRadius: 28,
@@ -275,11 +364,18 @@ class _SettingButtonTile extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'Inter',
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? textLight
-                : textDark,
+            color: isDark ? textLight : textDark,
           ),
         ),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle!,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+              )
+            : null,
         trailing: const Icon(Icons.chevron_right_rounded,
             color: Colors.grey, size: 20),
       ),
@@ -287,9 +383,6 @@ class _SettingButtonTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Divider между пунктами
-// ---------------------------------------------------------------------------
 class _SettingDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -303,9 +396,6 @@ class _SettingDivider extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Тот же _AnimatedTap, что и на HomeScreen
-// ---------------------------------------------------------------------------
 class _AnimatedTap extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;

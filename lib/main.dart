@@ -5,6 +5,7 @@ import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'data/hive_boxes.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +35,7 @@ class EvolvApp extends StatelessWidget {
       theme: evolvLightTheme(),
       darkTheme: evolvDarkTheme(),
       themeMode: themeProvider.themeMode, // ← всё работает
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 // === Evolv Brand Colors ===
-const Color mintPrimary = Color(0xFF7BC8A4);
-const Color mintSecondary = Color(0xFF4CAF93);
+const Color mintPrimary = Color(0xFF7BC8A4); // единый бренд mint
+const Color mintSecondary = Color(0xFF4CAF93); // можно оставить для ховеров и теней
 const Color lightBackground = Color(0xFFF8FAF8);
 const Color cardBackground = Color(0xFFFFFFFF);
 const Color darkBackground = Color(0xFF121412);
@@ -13,6 +13,7 @@ ThemeData evolvLightTheme() {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: mintPrimary,
     brightness: Brightness.light,
+    primary: mintPrimary,
   );
 
   return ThemeData(
@@ -38,7 +39,7 @@ ThemeData evolvLightTheme() {
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: mintPrimary,
-      foregroundColor: colorScheme.onPrimary,
+      foregroundColor: Colors.white,
       elevation: 6,
     ),
   );
@@ -48,6 +49,7 @@ ThemeData evolvDarkTheme() {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: mintPrimary,
     brightness: Brightness.dark,
+    primary: mintPrimary, // 💚 одинаковый основной цвет
   );
 
   return ThemeData(
@@ -72,8 +74,8 @@ ThemeData evolvDarkTheme() {
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: mintSecondary,
-      foregroundColor: colorScheme.onPrimary,
+      backgroundColor: mintPrimary, // ✅ теперь один и тот же цвет
+      foregroundColor: Colors.white,
       elevation: 6,
     ),
   );

@@ -19,11 +19,23 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Box<Skill> skillBox;
   final Map<int, double> _previousHours = {}; // для анимации пульса
 
+  Duration _defaultSessionDuration = const Duration(hours: 1, minutes: 30);
+
   @override
   void initState() {
     super.initState();
     skillBox = HiveBoxes.skillBox();
+    _loadDefaultDuration();
   }
+
+  Future<void> _loadDefaultDuration() async {
+    final box = await Hive.openBox('settings');
+    final minutes = box.get('defaultDurationMinutes', defaultValue: 90);
+    setState(() {
+      _defaultSessionDuration = Duration(minutes: minutes);
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
+              ).then((_) => _loadDefaultDuration());
             },
             child: Container(
               width: 38,
@@ -256,8 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             builder: (_) => SessionTimerScreen(
                               skillName: s.name,
                               skillId: s.id,
-                              targetDuration:
-                                  const Duration(hours: 1, minutes: 30), // тест
+                              targetDuration: _defaultSessionDuration, // тест
                             ),
                           ),
                         );
@@ -544,14 +555,14 @@ class _AddSkillFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.primary;
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? mintSecondary : mintPrimary).withOpacity(0.35),
+            color: primary.withOpacity(0.35),
             blurRadius: 24,
             spreadRadius: 2,
           ),
@@ -559,7 +570,7 @@ class _AddSkillFab extends StatelessWidget {
       ),
       child: FloatingActionButton.extended(
         onPressed: onPressed,
-        backgroundColor: isDark ? mintSecondary : mintPrimary,
+        backgroundColor: primary,
         foregroundColor: Colors.white,
         elevation: 6,
         icon: const Icon(Icons.add, size: 22),

@@ -71,6 +71,7 @@ flutter:
   uses-material-design: true
   assets:
       - assets/sounds/notification-2-269292.mp3
+      - assets/images/screen.png
   fonts:
   - family: Inter
     fonts:
