@@ -6,11 +6,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:hive_flutter/hive_flutter.dart';
-import '../data/hive_boxes.dart';
-import '../data/models/session.dart';
-import '../data/models/skill.dart';
-import '../theme/app_theme.dart';
 import '../data/skill_repo.dart';
+import '../theme/app_theme.dart';
 
 class SessionTimerScreen extends StatefulWidget {
   final int skillId;
@@ -19,8 +16,8 @@ class SessionTimerScreen extends StatefulWidget {
 
   const SessionTimerScreen({
     super.key,
-    required this.skillName,
     required this.skillId,
+    required this.skillName,
     this.targetDuration = const Duration(hours: 1, minutes: 30),
   });
 
@@ -36,9 +33,12 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
   bool _running = false;
   bool _completed = false;
 
-  final TextEditingController _noteCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
   final _audioPlayer = AudioPlayer();
   final _notifications = FlutterLocalNotificationsPlugin();
+
+  static const _boxName = 'activeTimer';
+  static const _key = 'session';
 
   double get _progress {
     final total = widget.targetDuration.inMilliseconds;
@@ -51,50 +51,7 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initNotifications();
-  }
-
-  Future<void> _initNotifications() async {
-    tz.initializeTimeZones();
-
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings();
-    const settings = InitializationSettings(android: android, iOS: ios);
-
-    await _notifications.initialize(settings);
-  }
-
-  Future<void> _scheduleEndNotification() async {
-    final scheduledTime = tz.TZDateTime.now(tz.local).add(widget.targetDuration);
-
-    const androidDetails = AndroidNotificationDetails(
-      'session_end_channel',
-      'Session End Alert',
-      channelDescription: 'Alerts when your practice session finishes',
-      importance: Importance.max,
-      priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound('notification_2_269292'),
-      playSound: true,
-    );
-
-    const iosDetails = DarwinNotificationDetails(
-      presentSound: true,
-      presentAlert: true,
-    );
-
-    await _notifications.zonedSchedule(
-      1,
-      'Session Complete 🎉',
-      '${widget.skillName} session finished!',
-      scheduledTime,
-      const NotificationDetails(android: androidDetails, iOS: iosDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  }
-
-  Future<void> _cancelScheduledNotification() async {
-    await _notifications.cancel(1);
+    _restoreState();
   }
 
   @override
@@ -102,65 +59,185 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _noteCtrl.dispose();
-    _cancelScheduledNotification();
+    _cancelNotification();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_startTime == null) return;
+  // -------------------- NOTIFICATIONS --------------------
+  Future<void> _initNotifications() async {
+    tz.initializeTimeZones();
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const ios = DarwinInitializationSettings();
+    const settings = InitializationSettings(android: android, iOS: ios);
+    await _notifications.initialize(settings);
+  }
 
-    if (state == AppLifecycleState.resumed && _running) {
-      final diff = DateTime.now().difference(_startTime!);
-      if (diff >= widget.targetDuration) {
-        _onCompleted();
-      } else {
-        setState(() => _elapsed = diff);
-      }
+  Future<void> _scheduleNotification(Duration remain) async {
+    await _cancelNotification();
+    final scheduled = tz.TZDateTime.now(tz.local).add(remain);
+
+    const android = AndroidNotificationDetails(
+      'session_end_channel',
+      'Session End',
+      channelDescription: 'Notify when session ends',
+      importance: Importance.max,
+      priority: Priority.high,
+      sound: RawResourceAndroidNotificationSound('notification_2_269292'),
+      playSound: true,
+    );
+    const ios = DarwinNotificationDetails(presentAlert: true, presentSound: true);
+
+    await _notifications.zonedSchedule(
+      1,
+      'Session Complete 🎉',
+      '${widget.skillName} finished!',
+      scheduled,
+      const NotificationDetails(android: android, iOS: ios),
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  Future<void> _cancelNotification() async {
+    await _notifications.cancel(1);
+  }
+
+  // -------------------- HIVE STATE --------------------
+  Future<void> _saveState() async {
+    final box = await Hive.openBox(_boxName);
+    await box.put(_key, {
+      'skillId': widget.skillId,
+      'skillName': widget.skillName,
+      'startTime': _startTime?.toIso8601String(),
+      'elapsed': _elapsed.inMilliseconds,
+      'running': _running,
+      'completed': _completed,
+      'targetMs': widget.targetDuration.inMilliseconds,
+    });
+  }
+
+  Future<void> _clearState() async {
+    final box = await Hive.openBox(_boxName);
+    await box.delete(_key);
+    _ticker?.cancel();
+    _running = false;
+    _completed = false;
+    _startTime = null;
+    _elapsed = Duration.zero;
+    _cancelNotification();
+    if (mounted) setState(() {});
+  }
+
+Future<void> _restoreState() async {
+  final box = await Hive.openBox(_boxName);
+  final data = box.get(_key);
+  if (data == null || data is! Map || data['skillId'] != widget.skillId) return;
+
+  final bool running   = (data['running'] ?? false) == true;
+  final bool completed = (data['completed'] ?? false) == true;
+  final int  elapsedMs = (data['elapsed'] ?? 0) as int;
+  final String? startIso = data['startTime'] as String?;
+  final DateTime? start  = startIso != null ? DateTime.tryParse(startIso) : null;
+
+  // базовое восстановление
+  _elapsed   = Duration(milliseconds: elapsedMs);
+  _running   = running;
+  _startTime = start;
+  _completed = completed;
+
+  // если уже завершена — показываем финальный экран и ждём Save & Exit
+  if (_completed) {
+    _running = false;
+    _ticker?.cancel();
+    await _cancelNotification();
+
+    // гарантируем, что прогресс = 100%
+    if (_elapsed < widget.targetDuration) {
+      _elapsed = widget.targetDuration;
+    }
+
+    if (mounted) setState(() {});
+    return;
+  }
+
+  // если шёл таймер и есть старт — пересчитываем с учётом прошедшего времени
+  if (_running && _startTime != null) {
+    final diff = DateTime.now().difference(_startTime!);
+
+    // если цель уже достигнута в фоне — корректно завершаем без очистки state
+    if (diff >= widget.targetDuration) {
+      _elapsed = widget.targetDuration;
+      _onComplete(); // отмечает как завершённую, но НЕ чистит и НЕ закрывает экран
+    } else {
+      _elapsed = diff;
+      _startTicker();
     }
   }
 
+  if (mounted) setState(() {});
+}
+
+  // -------------------- TIMER LOGIC --------------------
   void _start() {
     if (_running) return;
-    _startTime ??= DateTime.now().subtract(_elapsed);
+
+    _startTime = DateTime.now().subtract(_elapsed);
     _running = true;
-    _playFinishSound();
-    _scheduleEndNotification(); // планируем уведомление
+    _completed = false;
 
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || !_running || _startTime == null) return;
-      final diff = DateTime.now().difference(_startTime!);
+    _startTicker();
+    final remain = widget.targetDuration - _elapsed;
+    if (remain.isNegative) {
+      _onComplete();
+    } else {
+      _scheduleNotification(remain);
+    }
 
-      if (diff >= widget.targetDuration) {
-        _onCompleted();
-      } else {
-        setState(() => _elapsed = diff);
-      }
-    });
+    _saveState();
     setState(() {});
   }
 
   void _pause() {
+    if (!_running) return;
     _running = false;
     _ticker?.cancel();
-    _cancelScheduledNotification(); // отменяем уведомление
+    _cancelNotification();
+
+    if (_startTime != null) {
+      _elapsed = DateTime.now().difference(_startTime!);
+    }
+    _saveState();
     setState(() {});
   }
 
-  void _onCompleted() {
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_running || _startTime == null) return;
+      final diff = DateTime.now().difference(_startTime!);
+      if (diff >= widget.targetDuration) {
+        _onComplete();
+      } else {
+        setState(() => _elapsed = diff);
+      }
+    });
+  }
+
+  void _onComplete() async {
     if (_completed) return;
     _completed = true;
     _running = false;
     _ticker?.cancel();
-    _cancelScheduledNotification();
+    await _cancelNotification();
     _elapsed = widget.targetDuration;
     HapticFeedback.mediumImpact();
-    _playFinishSound();
-    setState(() {});
+    await _playSound();
+    await _saveState();
+    if (mounted) setState(() {});
   }
 
-  Future<void> _playFinishSound() async {
+  Future<void> _playSound() async {
     try {
       await _audioPlayer.play(AssetSource('sounds/notification-2-269292.mp3'));
     } catch (e) {
@@ -168,48 +245,45 @@ class _SessionTimerScreenState extends State<SessionTimerScreen>
     }
   }
 
-Future<void> _endSession({required bool fromCompletion}) async {
-  _pause();
-  final result = await _openNoteSheet(fromCompletion: fromCompletion);
-  if (!mounted || result == null) return;
+  // -------------------- END SESSION --------------------
+  Future<void> _endSession({required bool fromCompletion}) async {
+    _pause();
+    final result = await _openNoteSheet(fromCompletion: fromCompletion);
+    if (!mounted || result == null) return;
 
-  try {
-    final now = DateTime.now();
-    final duration = _startTime != null ? now.difference(_startTime!) : _elapsed;
+    try {
+      final duration = _elapsed;
+      final durationMinutes = duration.inSeconds < 60
+          ? duration.inSeconds / 60.0
+          : duration.inMinutes.toDouble();
 
-    final durationMinutes = duration.inSeconds < 60
-        ? duration.inSeconds / 60.0
-        : duration.inMinutes.toDouble();
+      await SkillRepo.addSession(
+        skillId: widget.skillId,
+        durationMinutes: durationMinutes,
+        note: _noteCtrl.text.trim(),
+      );
 
-    // ✅ сохраняем сессию и пересчитываем streak через SkillRepo
-    await SkillRepo.addSession(
-      skillId: widget.skillId,
-      durationMinutes: durationMinutes,
-      note: _noteCtrl.text.trim(),
-    );
+      await _clearState();
 
-    debugPrint('✅ Session added for skillId=${widget.skillId} (${durationMinutes.toStringAsFixed(2)} min)');
-
-    // ⏳ короткая задержка перед возвратом, чтобы Hive успел обновиться
-    Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted && Navigator.canPop(context)) {
         Navigator.of(context).pop(true);
       }
-    });
-  } catch (e, st) {
-    debugPrint('❌ Error saving session: $e\n$st');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.redAccent,
-          content: Text('Error while saving session'),
-        ),
-      );
+    } catch (e, st) {
+      debugPrint('❌ Error saving session: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text('Error while saving session'),
+          ),
+        );
+      }
     }
   }
-}
 
-  Future<Map<String, dynamic>?> _openNoteSheet({required bool fromCompletion}) {
+  // -------------------- NOTE SHEET --------------------
+  Future<Map<String, dynamic>?> _openNoteSheet(
+      {required bool fromCompletion}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     _noteCtrl.clear();
@@ -312,22 +386,50 @@ Future<void> _endSession({required bool fromCompletion}) async {
     );
   }
 
+  // -------------------- UI --------------------
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-              child: Row(
-                children: [
-                  _BackNeuroButton(
-                    onPressed: () async {
+    return WillPopScope(
+      onWillPop: () async {
+        if (_running) {
+          _pause();
+          final shouldExit = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Exit session?'),
+              content: const Text('Your progress for this session will be lost.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Exit', style: TextStyle(color: Colors.redAccent)),
+                ),
+              ],
+            ),
+          );
+          if (shouldExit == true) {
+            await _clearState();
+          }
+          return shouldExit ?? false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                child: Row(
+                  children: [
+                    _BackButton(onPressed: () async {
                       if (_running) {
                         _pause();
                         final shouldExit = await showDialog<bool>(
@@ -354,108 +456,66 @@ Future<void> _endSession({required bool fromCompletion}) async {
                           ),
                         );
                         if (shouldExit == true && context.mounted) {
+                          await _clearState();
                           Navigator.pop(context);
                         }
                       } else {
                         Navigator.pop(context);
                       }
-                    },
+                    }),
+                    const Spacer(),
+                    Text(
+                      '${widget.skillName} Practice',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                        color: isDark ? textLight : textDark,
+                      ),
+                    ),
+                    const Spacer(),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: _RingTimer(
+                    progress: _progress,
+                    timeText: _format(_elapsed),
+                    isDark: isDark,
+                    onCenterTap: () => _running ? _pause() : _start(),
                   ),
-                  const Spacer(),
-                  Text(
-                    '${widget.skillName} Practice',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Goal: ${_format(widget.targetDuration)}',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              if (_completed)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    "You're done! 🎉",
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                      color: isDark ? textLight : textDark,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.secondary,
                     ),
                   ),
-                  const Spacer(),
-                  const SizedBox(width: 48),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: _RingTimer(
-                  progress: _progress,
-                  timeText: _format(_elapsed),
-                  isDark: isDark,
-                  onCenterTap: () => _running ? _pause() : _start(),
                 ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Goal: ${_format(widget.targetDuration)}',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white70 : Colors.black54,
-              ),
-            ),
-            if (_completed)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  "You're done! 🎉",
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.secondary,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: _completed
-                    ? StatefulBuilder(
-                        builder: (context, setState) {
-                          bool pressed = false;
-                          return GestureDetector(
-                            onTapDown: (_) {
-                              setState(() => pressed = true);
-                              HapticFeedback.lightImpact();
-                            },
-                            onTapUp: (_) {
-                              setState(() => pressed = false);
-                              _endSession(fromCompletion: true);
-                            },
-                            onTapCancel: () => setState(() => pressed = false),
-                            child: AnimatedScale(
-                              scale: pressed ? 0.96 : 1.0,
-                              duration: const Duration(milliseconds: 120),
-                              curve: Curves.easeOut,
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: mintPrimary, // ✅ всегда зелёная
-                                  borderRadius: BorderRadius.circular(26),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: mintPrimary.withOpacity(0.35),
-                                      blurRadius: 22,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                alignment: Alignment.center,
-                                child: const Text(
-                                  'Session Complete',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                    ? _NeuroPillButton(
+                        label: 'Session Complete',
+                        onTap: () => _endSession(fromCompletion: true),
                       )
                     : Row(
                         children: [
@@ -475,7 +535,8 @@ Future<void> _endSession({required bool fromCompletion}) async {
                         ],
                       ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -486,35 +547,20 @@ Future<void> _endSession({required bool fromCompletion}) async {
 
   List<BoxShadow> _neuShadows(bool isDark) => isDark
       ? [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.55),
-            offset: const Offset(6, 6),
-            blurRadius: 14,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.07),
-            offset: const Offset(-6, -6),
-            blurRadius: 12,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.55), offset: const Offset(6, 6), blurRadius: 14),
+          BoxShadow(color: Colors.white.withOpacity(0.07), offset: const Offset(-6, -6), blurRadius: 12),
         ]
       : [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            offset: const Offset(6, 6),
-            blurRadius: 14,
-          ),
-          const BoxShadow(
-            color: Colors.white,
-            offset: Offset(-6, -6),
-            blurRadius: 12,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.10), offset: const Offset(6, 6), blurRadius: 14),
+          const BoxShadow(color: Colors.white, offset: Offset(-6, -6), blurRadius: 12),
         ];
 }
 
-/// ---------- Widgets ----------
-class _BackNeuroButton extends StatelessWidget {
+// -------------------- Widgets --------------------
+
+class _BackButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const _BackNeuroButton({required this.onPressed});
+  const _BackButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -532,13 +578,11 @@ class _RingTimer extends StatelessWidget {
   final String timeText;
   final bool isDark;
   final VoidCallback onCenterTap;
-
-  const _RingTimer({
-    required this.progress,
-    required this.timeText,
-    required this.isDark,
-    required this.onCenterTap,
-  });
+  const _RingTimer(
+      {required this.progress,
+      required this.timeText,
+      required this.isDark,
+      required this.onCenterTap});
 
   @override
   Widget build(BuildContext context) {
@@ -554,28 +598,12 @@ class _RingTimer extends StatelessWidget {
           color: isDark ? const Color(0xFF181C18) : Colors.white,
           boxShadow: isDark
               ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.55),
-                    offset: const Offset(10, 10),
-                    blurRadius: 22,
-                  ),
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.07),
-                    offset: const Offset(-10, -10),
-                    blurRadius: 18,
-                  ),
+                  BoxShadow(color: Colors.black.withOpacity(0.55), offset: const Offset(10, 10), blurRadius: 22),
+                  BoxShadow(color: Colors.white.withOpacity(0.07), offset: const Offset(-10, -10), blurRadius: 18),
                 ]
               : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.10),
-                    offset: const Offset(10, 10),
-                    blurRadius: 22,
-                  ),
-                  const BoxShadow(
-                    color: Colors.white,
-                    offset: Offset(-10, -10),
-                    blurRadius: 18,
-                  ),
+                  BoxShadow(color: Colors.black.withOpacity(0.10), offset: const Offset(10, 10), blurRadius: 22),
+                  const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 18),
                 ],
         ),
         child: Stack(
@@ -623,11 +651,7 @@ class _RingTimer extends StatelessWidget {
 class _NeuroPillButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
-
-  const _NeuroPillButton({
-    required this.label,
-    required this.onTap,
-  });
+  const _NeuroPillButton({required this.label, required this.onTap});
 
   @override
   State<_NeuroPillButton> createState() => _NeuroPillButtonState();
@@ -639,11 +663,10 @@ class _NeuroPillButtonState extends State<_NeuroPillButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return GestureDetector(
       onTapDown: (_) {
         setState(() => _pressed = true);
-        HapticFeedback.lightImpact(); // 🔸 добавили мягкую вибрацию
+        HapticFeedback.lightImpact();
       },
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
