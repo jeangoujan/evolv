@@ -58,147 +58,150 @@ class SkillStatsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              body: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- Top stats ---
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _NeuroStatCard(
-                            label: 'Total Time',
-                            value: formattedTotal,
-                            isDark: isDark,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _NeuroStatCard(
-                            label: 'Current Streak',
-                            value: '${liveSkill.currentStreak} days',
-                            isDark: isDark,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // --- Goal Progress ---
-                    Text(
-                      'Goal Progress',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: isDark ? textLight : textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _NeuroProgressBar(
-                      progress: goalProgress.clamp(0, 1),
-                      label:
-                          '${(totalMinutes / 60).toStringAsFixed(1)} / ${liveSkill.goalHours} h',
-                      isDark: isDark,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // --- Weekly Progress ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Weekly Progress',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            color: isDark ? textLight : textDark,
-                          ),
-                        ),
-                        Text(
-                          '${_fmtDM(weekStart)} – ${_fmtDM(weekEnd)}',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white60 : Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _WeeklySummary(
-                      totalMinutes: weekStats['thisWeek'],
-                      percentChange: weekStats['percentChange'],
-                      daysActive: weekStats['daysActive'],
-                      isDark: isDark,
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // --- Recent Sessions ---
-                    Text(
-                      'Recent Sessions',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: isDark ? textLight : textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (last5.isEmpty)
-                      Text(
-                        'No sessions yet.',
-                        style: TextStyle(
-                          color: isDark ? Colors.white70 : Colors.black54,
-                        ),
-                      ),
-                    ...last5.map((s) => _DetailedSessionCard(s: s, isDark: isDark)),
-                    const SizedBox(height: 24),
-
-                    // --- All Sessions button ---
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: mintPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 8,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SkillDetailScreen(
-                                skillName: liveSkill.name,
-                                hoursDone: liveSkill.totalHours,
-                                goalHours: liveSkill.goalHours,
-                                skillId: liveSkill.id,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'All Sessions →',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              body: SafeArea(
+  child: SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    physics: const BouncingScrollPhysics(),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // --- Top stats ---
+        Row(
+          children: [
+            Expanded(
+              child: _NeuroStatCard(
+                label: 'Total Time',
+                value: formattedTotal,
+                isDark: isDark,
               ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _NeuroStatCard(
+                label: 'Current Streak',
+                value: '${liveSkill.currentStreak} days',
+                isDark: isDark,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // --- Goal Progress ---
+        Text(
+          'Goal Progress',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: isDark ? textLight : textDark,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _NeuroProgressBar(
+          progress: goalProgress.clamp(0, 1),
+          label:
+              '${(totalMinutes / 60).toStringAsFixed(1)} / ${liveSkill.goalHours} h',
+          isDark: isDark,
+        ),
+
+        const SizedBox(height: 24),
+
+        // --- Weekly Progress ---
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Weekly Progress',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: isDark ? textLight : textDark,
+              ),
+            ),
+            Text(
+              '${_fmtDM(weekStart)} – ${_fmtDM(weekEnd)}',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _WeeklySummary(
+          totalMinutes: weekStats['thisWeek'],
+          percentChange: weekStats['percentChange'],
+          daysActive: weekStats['daysActive'],
+          isDark: isDark,
+        ),
+
+        const SizedBox(height: 30),
+
+        // --- Recent Sessions ---
+        Text(
+          'Recent Sessions',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: isDark ? textLight : textDark,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (last5.isEmpty)
+          Text(
+            'No sessions yet.',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+        ...last5.map((s) => _DetailedSessionCard(s: s, isDark: isDark)),
+        const SizedBox(height: 24),
+
+        // --- All Sessions button ---
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: mintPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 8,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SkillDetailScreen(
+                    skillName: liveSkill.name,
+                    hoursDone: liveSkill.totalHours,
+                    goalHours: liveSkill.goalHours,
+                    skillId: liveSkill.id,
+                  ),
+                ),
+              );
+            },
+            child: const Text(
+              'All Sessions →',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
             );
           },
         );

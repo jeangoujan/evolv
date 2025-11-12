@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_provider.dart';
 import 'backup_screen.dart';
+import 'tip_jar_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -118,104 +119,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
+      body: SafeArea(
+  minimum: const EdgeInsets.only(top: 8, bottom: 12),
+  child: SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _NeuroCard(
+          child: Column(
+            children: [
+              _SettingSwitchTile(
+                icon: Icons.brightness_6_rounded,
+                title: 'Light / Dark Mode',
+                value: isDarkMode,
+                onChanged: (v) {
+                  themeProvider.setTheme(
+                    v ? ThemeMode.dark : ThemeMode.light,
+                  );
+                },
+              ),
+              _SettingDivider(),
+              _SettingButtonTile(
+                icon: Icons.timer_outlined,
+                title: 'Default Session Duration',
+                subtitle: _formatDuration(_defaultDuration),
+                onTap: _pickDuration,
+              ),
+              _SettingDivider(),
+              _SettingButtonTile(
+                icon: Icons.favorite_outline_rounded,
+                title: 'Support Evolv 💚',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TipJarScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _NeuroCard(
+          child: Column(
+            children: [
+              _SettingButtonTile(
+                icon: Icons.cloud_outlined,
+                title: 'Data & Backup',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BackupScreen()),
+                  );
+                },
+              ),
+              _SettingDivider(),
+              _SettingButtonTile(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy',
+                onTap: _openPrivacyPolicy,
+              ),
+              _SettingDivider(),
+              _SettingButtonTile(
+                icon: Icons.info_outline_rounded,
+                title: 'About',
+                onTap: () => _showAboutDialog(context),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
+        Column(
           children: [
-            _NeuroCard(
-              child: Column(
-                children: [
-                  _SettingSwitchTile(
-                    icon: Icons.brightness_6_rounded,
-                    title: 'Light / Dark Mode',
-                    value: isDarkMode,
-                    onChanged: (v) {
-                      themeProvider.setTheme(
-                        v ? ThemeMode.dark : ThemeMode.light,
-                      );
-                    },
-                  ),
-                  _SettingDivider(),
-                  _SettingButtonTile(
-                    icon: Icons.timer_outlined,
-                    title: 'Default Session Duration',
-                    subtitle: _formatDuration(_defaultDuration),
-                    onTap: _pickDuration,
-                  ),
-                ],
+            Text(
+              'Evolv v1.0.0',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                color: isDark ? Colors.white54 : Colors.black54,
               ),
             ),
-            const SizedBox(height: 20),
-            _NeuroCard(
-              child: Column(
-                children: [
-                  _SettingButtonTile(
-                    icon: Icons.cloud_outlined,
-                    title: 'Data & Backup',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const BackupScreen()),
-                      );
-                    },
-                  ),
-                  _SettingDivider(),
-                  _SettingButtonTile(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy',
-                    onTap: () {},
-                  ),
-                  _SettingDivider(),
-                  _SettingButtonTile(
-                    icon: Icons.info_outline_rounded,
-                    title: 'About',
-                    onTap: () => _showAboutDialog(context),
-                  ),
-                ],
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: _contactSupport,
+              child: Text(
+                'Contact Support',
+                style: TextStyle(
+                  color: mintPrimary,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
               ),
             ),
-            const Spacer(),
-            Column(
-              children: [
-                Text(
-                  'Evolv v1.0.0',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: isDark ? Colors.white54 : Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: _contactSupport,
-                  child: Text(
-                    'Contact Support',
-                    style: TextStyle(
-                      color: mintPrimary,
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
-              ],
-            ),
+            const SizedBox(height: 30),
           ],
         ),
-      ),
+      ],
+    ),
+  ),
+),
     );
   }
 
   void _contactSupport() async {
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
-      path: 'support@evolvapp.com',
+      path: 'support@evolvapp.site',
       queryParameters: {'subject': 'Evolv App Support'},
     );
     if (await canLaunchUrl(emailLaunchUri)) {
       await launchUrl(emailLaunchUri);
     }
   }
+
+Future<void> _openPrivacyPolicy() async {
+  final Uri url = Uri.parse('https://evolvapp.site/privacy');
+  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not open Privacy Policy'),
+      ),
+    );
+  }
+}
 
   void _showAboutDialog(BuildContext context) {
     showDialog(
@@ -230,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700),
         ),
         content: const Text(
-          'Evolv helps you grow through consistent skill practice.\n\n'
-          'Version: 1.0.0\nDeveloped with ❤️ for lifelong learners.',
+          'Evolv helps you grow through consistent skill practice\n\n'
+          'Version: 1.0.0\nDeveloped with ❤️ for lifelong learners\n\nMade by Jeangoujan',
           style: TextStyle(fontFamily: 'Inter'),
         ),
         actions: [

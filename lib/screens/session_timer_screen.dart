@@ -578,11 +578,13 @@ class _RingTimer extends StatelessWidget {
   final String timeText;
   final bool isDark;
   final VoidCallback onCenterTap;
-  const _RingTimer(
-      {required this.progress,
-      required this.timeText,
-      required this.isDark,
-      required this.onCenterTap});
+
+  const _RingTimer({
+    required this.progress,
+    required this.timeText,
+    required this.isDark,
+    required this.onCenterTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -590,59 +592,88 @@ class _RingTimer extends StatelessWidget {
 
     return GestureDetector(
       onTap: onCenterTap,
-      child: Container(
-        width: 280,
-        height: 280,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isDark ? const Color(0xFF181C18) : Colors.white,
-          boxShadow: isDark
-              ? [
-                  BoxShadow(color: Colors.black.withOpacity(0.55), offset: const Offset(10, 10), blurRadius: 22),
-                  BoxShadow(color: Colors.white.withOpacity(0.07), offset: const Offset(-10, -10), blurRadius: 18),
-                ]
-              : [
-                  BoxShadow(color: Colors.black.withOpacity(0.10), offset: const Offset(10, 10), blurRadius: 22),
-                  const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 18),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Базовый квадрат = 70% от кратчайшей стороны экрана (портрет/ландшафт)
+          final size = (constraints.biggest.shortestSide * 0.70).clamp(180.0, 420.0);
+          final ringSize = size * 0.82;                 // внутренний круг
+          final stroke = (size * 0.06).clamp(8.0, 18.0); // толщина дуг
+          final fontSize = (size * 0.16).clamp(28.0, 48.0);
+
+          return SizedBox(
+            width: size,
+            height: size,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF181C18) : Colors.white,
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.55),
+                          offset: const Offset(10, 10),
+                          blurRadius: 22,
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.07),
+                          offset: const Offset(-10, -10),
+                          blurRadius: 18,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.10),
+                          offset: const Offset(10, 10),
+                          blurRadius: 22,
+                        ),
+                        const BoxShadow(
+                          color: Colors.white,
+                          offset: Offset(-10, -10),
+                          blurRadius: 18,
+                        ),
+                      ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: ringSize,
+                    height: ringSize,
+                    child: CircularProgressIndicator(
+                      value: 1,
+                      strokeWidth: stroke,
+                      valueColor: AlwaysStoppedAnimation<Color>(bgTrack),
+                    ),
+                  ),
+                  SizedBox(
+                    width: ringSize,
+                    height: ringSize,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: progress),
+                      duration: const Duration(milliseconds: 300),
+                      builder: (_, v, __) => CircularProgressIndicator(
+                        value: v,
+                        strokeWidth: stroke,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(mintPrimary),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    timeText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w800,
+                      fontSize: fontSize,
+                      color: isDark ? textLight : textDark,
+                    ),
+                  ),
                 ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 230,
-              height: 230,
-              child: CircularProgressIndicator(
-                value: 1.0,
-                strokeWidth: 16,
-                valueColor: AlwaysStoppedAnimation<Color>(bgTrack),
               ),
             ),
-            SizedBox(
-              width: 230,
-              height: 230,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: progress),
-                duration: const Duration(milliseconds: 300),
-                builder: (_, v, __) => CircularProgressIndicator(
-                  value: v,
-                  strokeWidth: 16,
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(mintPrimary),
-                ),
-              ),
-            ),
-            Text(
-              timeText,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w800,
-                fontSize: 40,
-                color: isDark ? textLight : textDark,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

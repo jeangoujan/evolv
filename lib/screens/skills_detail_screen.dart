@@ -38,150 +38,159 @@ Widget build(BuildContext context) {
         ),
       ),
     ),
-    body: ValueListenableBuilder(
-      valueListenable: sessionBox.listenable(),
-      builder: (context, Box<Session> box, _) {
-        final sessions = box.values
-            .where((s) => s.skillId == skillId)
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
+    body: SafeArea(
+  child: ValueListenableBuilder(
+    valueListenable: sessionBox.listenable(),
+    builder: (context, Box<Session> box, _) {
+      final sessions = box.values
+          .where((s) => s.skillId == skillId)
+          .toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
 
-        if (sessions.isEmpty) {
-          return Center(
-            child: Text(
-              'No sessions yet.\nStart training!',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
+      if (sessions.isEmpty) {
+        return Center(
+          child: Text(
+            'No sessions yet.\nStart training!',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: isDark ? Colors.white60 : Colors.black54,
             ),
-          );
-        }
+          ),
+        );
+      }
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: sessions.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) {
-            final s = sessions[i];
-            return GestureDetector(
-              onLongPress: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor:
-                        isDark ? const Color(0xFF1C201C) : Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                    title: Text(
-                      'Delete this session?',
+      final bottom = MediaQuery.of(context).padding.bottom + 16;
+
+      return ListView.separated(
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottom),
+        itemCount: sessions.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, i) {
+          final s = sessions[i];
+
+          return GestureDetector(
+            onLongPress: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  title: Text(
+                    'Delete this session?',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  content: const Text('This action cannot be undone.', style: TextStyle(fontFamily: 'Inter')),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                await s.delete();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text(
+                      'Session deleted',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600),
+                    ),
+                    backgroundColor: Colors.redAccent,
+                    duration: const Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                );
+              }
+            },
+            child: _AnimatedTap(
+              borderRadius: 20,
+              onTap: () {},
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF181C18) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.55),
+                            offset: const Offset(6, 6),
+                            blurRadius: 14,
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.07),
+                            offset: const Offset(-6, -6),
+                            blurRadius: 12,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.10),
+                            offset: const Offset(6, 6),
+                            blurRadius: 14,
+                          ),
+                          const BoxShadow(
+                            color: Colors.white,
+                            offset: Offset(-6, -6),
+                            blurRadius: 12,
+                          ),
+                        ],
+                ),
+                // 👇 ВАЖНО: без Row — тогда текст знает ширину и переносится
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatDuration(s.durationMinutes),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? textLight : textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(s.date),
                       style: TextStyle(
                         fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : Colors.black,
+                        color: isDark ? Colors.white70 : Colors.black.withOpacity(0.6),
                       ),
                     ),
-                    content: const Text(
-                      'This action cannot be undone.',
-                      style: TextStyle(fontFamily: 'Inter'),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text(
-                          'Delete',
-                          style: TextStyle(color: Colors.redAccent),
+                    if (s.note?.isNotEmpty == true) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        s.note!,
+                        softWrap: true,
+                        // без maxLines/overflow — карточка растягивается по высоте
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 16,      // ← увеличили шрифт заметки
+                          height: 1.35,      // ← читаемый межстрочный
+                          color: isDark ? Colors.white70 : Colors.black87,
                         ),
                       ),
                     ],
-                  ),
-                );
-
-                if (confirm == true) {
-                  await s.delete();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text(
-                        'Session deleted',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w600),
-                      ),
-                      backgroundColor: Colors.redAccent,
-                      duration: const Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 60, vertical: 40),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                    ),
-                  );
-                }
-              },
-              child: _AnimatedTap(
-                borderRadius: 20,
-                onTap: () {}, // визуальный эффект
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 14),
-                  decoration: BoxDecoration(
-                    color:
-                        isDark ? const Color(0xFF181C18) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _formatDuration(s.durationMinutes),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? textLight : textDark,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatDate(s.date),
-                            style: TextStyle(
-                              color: isDark
-                                  ? Colors.white70
-                                  : Colors.black.withOpacity(0.6),
-                              fontFamily: 'Inter',
-                            ),
-                          ),
-                          if (s.note?.isNotEmpty == true)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                s.note!,
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.white60
-                                      : Colors.black
-                                          .withOpacity(0.55),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    ),
+            ),
+          );
+        },
+      );
+    },
+  ),
+),
   );
 }
 

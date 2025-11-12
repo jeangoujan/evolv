@@ -105,183 +105,180 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     ),
       
-      body: ValueListenableBuilder(
-        valueListenable: skillBox.listenable(),
-        builder: (context, Box<Skill> box, _) {
-          final skills = box.values.toList();
-          print('📦 Skills from Hive:');
-          for (final s in skills) {
-            print('   ${s.name}: ${s.totalHours.toStringAsFixed(2)} h');
-          }
+      body: SafeArea(
+  minimum: const EdgeInsets.only(top: 8),
+  child: ValueListenableBuilder(
+    valueListenable: skillBox.listenable(),
+    builder: (context, Box<Skill> box, _) {
+      final skills = box.values.toList();
+      print('📦 Skills from Hive:');
+      for (final s in skills) {
+        print('   ${s.name}: ${s.totalHours.toStringAsFixed(2)} h');
+      }
 
-          if (skills.isEmpty) {
-            return Center(
-              child: Text(
-                'No skills yet.\nTap "Add Skill" to start!',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: isDark ? Colors.white60 : Colors.black54,
+      if (skills.isEmpty) {
+        return Center(
+          child: Text(
+            'No skills yet.\nTap "Add Skill" to start!',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+        );
+      }
+
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: ListView.separated(
+          key: ValueKey(skills.length),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+          itemCount: skills.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (context, i) {
+            final s = skills[i];
+
+            // 🔄 Проверяем, выросло ли количество часов
+            final prev = _previousHours[s.id] ?? s.totalHours;
+            final increased = s.totalHours > prev;
+            _previousHours[s.id] = s.totalHours;
+
+            // 🧠 Считаем реальное время по всем сессиям из Hive
+            final sessionBox = HiveBoxes.sessionBox();
+            final sessionsForSkill =
+                sessionBox.values.where((sess) => sess.skillId == s.id).toList();
+
+            final totalMinutes = sessionsForSkill.fold<double>(
+              0,
+              (sum, sess) => sum + sess.durationMinutes,
+            );
+            final totalHours = totalMinutes / 60.0;
+
+            // округляем вниз до целого
+            final displayHours = totalHours < 1 ? 0 : totalHours.floor();
+            final hoursLabel =
+                '$displayHours ${displayHours == 1 ? "hour" : "hours"}';
+
+            return _AnimatedPulse(
+              active: increased,
+              child: GestureDetector(
+                onLongPress: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      backgroundColor:
+                          isDark ? const Color(0xFF1C201C) : Colors.white,
+                      title: Text(
+                        'Delete "${s.name}"?',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      content: Text(
+                        'This will remove the skill and all its sessions.',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color:
+                                  isDark ? Colors.grey[400] : Colors.black87,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    await skillBox.deleteAt(i);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          elevation: 8,
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 40),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          content: Center(
+                            child: Text(
+                              '"${s.name}" deleted',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: _SkillCard(
+                  name: s.name,
+                  hoursLabel: hoursLabel,
+                  icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
+                  color: Color(s.colorValue),
+                  onCardTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SkillStatsScreen(skill: s),
+                      ),
+                    );
+                  },
+                  onStartTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        fullscreenDialog: false,
+                        builder: (_) => SessionTimerScreen(
+                          skillName: s.name,
+                          skillId: s.id,
+                          targetDuration: _defaultSessionDuration,
+                        ),
+                      ),
+                    );
+                    setState(() {}); // обновим при возврате
+                  },
                 ),
               ),
             );
-          }
-
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: ListView.separated(
-              key: ValueKey(skills.length),
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
-              itemCount: skills.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
-              itemBuilder: (context, i) {
-                final s = skills[i];
-
-                // 🔄 Проверяем, выросло ли количество часов
-                final prev = _previousHours[s.id] ?? s.totalHours;
-                final increased = s.totalHours > prev;
-                _previousHours[s.id] = s.totalHours;
-
-                // 🧮 Формируем красивый текст для часов
-                // 🧠 Теперь считаем реальное время по всем сессиям из Hive
-                final sessionBox = HiveBoxes.sessionBox();
-                final sessionsForSkill =
-                    sessionBox.values.where((sess) => sess.skillId == s.id).toList();
-
-                final totalMinutes = sessionsForSkill.fold<double>(
-                  0,
-                  (sum, sess) => sum + sess.durationMinutes,
-                );
-                final totalHours = totalMinutes / 60.0;
-
-                // Округляем вниз до целого числа
-                final displayHours = totalHours < 1 ? 0 : totalHours.floor();
-                final hoursLabel =
-                    '$displayHours ${displayHours == 1 ? "hour" : "hours"}';
-
-                return _AnimatedPulse(
-                  active: increased,
-                  child: GestureDetector(
-                    onLongPress: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          backgroundColor:
-                              isDark ? const Color(0xFF1C201C) : Colors.white,
-                          title: Text(
-                            'Delete "${s.name}"?',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : Colors.black,
-                            ),
-                          ),
-                          content: Text(
-                            'This will remove the skill and all its sessions.',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              color:
-                                  isDark ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(context, false),
-                              child: Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.grey[400]
-                                      : Colors.black87,
-                                  fontFamily: 'Inter',
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(context, true),
-                              child: const Text(
-                                'Delete',
-                                style: TextStyle(
-                                  color: Colors.redAccent,
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-
-                      if (confirm == true) {
-                        await skillBox.deleteAt(i);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              backgroundColor: Colors.redAccent,
-                              behavior: SnackBarBehavior.floating,
-                              elevation: 8,
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 50, vertical: 40),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              content: Center(
-                                child: Text(
-                                  '"${s.name}" deleted',
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: _SkillCard(
-                      name: s.name,
-                      hoursLabel: hoursLabel,
-                      icon: IconData(s.iconCode,
-                          fontFamily: 'MaterialIcons'),
-                      color: Color(s.colorValue),
-                      onCardTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SkillStatsScreen(skill: s),
-                          ),
-                        );
-                      },
-                      onStartTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            fullscreenDialog: false,
-                            builder: (_) => SessionTimerScreen(
-                              skillName: s.name,
-                              skillId: s.id,
-                              targetDuration: _defaultSessionDuration, // тест
-                            ),
-                          ),
-                        );
-                        setState(() {}); // обновим при возврате
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+          },
+        ),
+      );
+    },
+  ),
+),
       floatingActionButtonLocation:
           FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _AddSkillFab(

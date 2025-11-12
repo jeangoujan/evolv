@@ -67,26 +67,29 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _buildLabel("Skill Name", isDark),
-          _buildTextField(_nameController, "e.g., Learn Piano", isDark),
-          const SizedBox(height: 24),
-          _buildLabel("Goal Hours (Optional)", isDark),
-          _buildTextField(_goalController, "e.g., 100", isDark,
-              keyboardType: TextInputType.number),
-          const SizedBox(height: 32),
-          _buildLabel("Select an Icon", isDark),
-          const SizedBox(height: 12),
-          _buildIconGrid(isDark),
-          const SizedBox(height: 28),
-          _buildLabel("Choose a Color", isDark),
-          const SizedBox(height: 12),
-          _buildColorRow(isDark),
-          const SizedBox(height: 40),
-          _buildSaveButton(context),
-        ],
+      body: SafeArea(
+        minimum: const EdgeInsets.only(top: 8, bottom: 12),
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _buildLabel("Skill Name", isDark),
+            _buildTextField(_nameController, "e.g., Learn Piano", isDark),
+            const SizedBox(height: 24),
+            _buildLabel("Goal Hours (Optional)", isDark),
+            _buildTextField(_goalController, "e.g., 100", isDark,
+                keyboardType: TextInputType.number),
+            const SizedBox(height: 32),
+            _buildLabel("Select an Icon", isDark),
+            const SizedBox(height: 12),
+            _buildIconGrid(isDark),
+            const SizedBox(height: 28),
+            _buildLabel("Choose a Color", isDark),
+            const SizedBox(height: 12),
+            _buildColorRow(isDark),
+            const SizedBox(height: 40),
+            _buildSaveButton(context),
+          ],
+        ),
       ),
     );
   }
@@ -161,24 +164,33 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
     );
   }
 
-  Widget _buildIconGrid(bool isDark) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _icons.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-      ),
-      itemBuilder: (context, index) {
-        final selected = _selectedIconIndex == index;
-        final icon = _icons[index];
+Widget _buildIconGrid(bool isDark) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  final crossAxisCount = screenWidth > 600 ? 6 : 4; // 6 в landscape, 4 в portrait
+  final iconSize = screenWidth > 600 ? 38.0 : 26.0; // масштабируем иконку
+  final circleSize = screenWidth > 600 ? 90.0 : 70.0; // и сам кружок
 
-        return GestureDetector(
-          onTap: () => setState(() => _selectedIconIndex = index),
+  return GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: _icons.length,
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: crossAxisCount,
+      mainAxisSpacing: 14,
+      crossAxisSpacing: 14,
+      childAspectRatio: 1, // чтобы клетки оставались квадратными
+    ),
+    itemBuilder: (context, index) {
+      final selected = _selectedIconIndex == index;
+      final icon = _icons[index];
+
+      return GestureDetector(
+        onTap: () => setState(() => _selectedIconIndex = index),
+        child: Center(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
+            width: circleSize,
+            height: circleSize,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isDark ? const Color(0xFF1F241F) : Colors.white,
@@ -199,8 +211,9 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
                   blurRadius: 10,
                 ),
                 BoxShadow(
-                  color:
-                      isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.white,
                   offset: const Offset(-4, -4),
                   blurRadius: 8,
                 ),
@@ -214,16 +227,17 @@ class _AddSkillScreenState extends State<AddSkillScreen> {
             ),
             child: Icon(
               icon,
-              size: 26,
+              size: iconSize,
               color: selected
                   ? mintPrimary
                   : (isDark ? Colors.white70 : Colors.black87),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildColorRow(bool isDark) {
     return Row(
