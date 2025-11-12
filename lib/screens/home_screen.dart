@@ -7,6 +7,8 @@ import 'add_skill_screen.dart';
 import 'session_timer_screen.dart';
 import 'skill_stats_screen.dart';
 import 'settings_screen.dart';
+import 'add_existing_skill_screen.dart';
+import 'package:flutter/services.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -148,11 +150,18 @@ class _HomeScreenState extends State<HomeScreen> {
             final sessionsForSkill =
                 sessionBox.values.where((sess) => sess.skillId == s.id).toList();
 
-            final totalMinutes = sessionsForSkill.fold<double>(
-              0,
-              (sum, sess) => sum + sess.durationMinutes,
-            );
-            final totalHours = totalMinutes / 60.0;
+            double totalHours;
+
+            if (sessionsForSkill.isEmpty) {
+              // если нет сессий — используем сохранённое значение из Skill
+              totalHours = s.totalHours;
+            } else {
+              // иначе — реальное суммарное время по всем сессиям
+              final totalMinutes = sessionsForSkill.fold<double>(
+                0,
+                (sum, sess) => sum + sess.durationMinutes,
+              );
+              totalHours = totalMinutes / 60.0; }
 
             // округляем вниз до целого
             final displayHours = totalHours < 1 ? 0 : totalHours.floor();
@@ -399,16 +408,135 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButtonLocation:
           FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _AddSkillFab(
-        onPressed: () async {
-          final newSkill = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddSkillScreen()),
-          );
-          if (newSkill != null && newSkill is Skill) {
-            skillBox.put(newSkill.id, newSkill);
-          }
-        },
-      ),
+  onPressed: () async {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+
+  HapticFeedback.lightImpact();
+
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent, // даём красивую «карту» внутри
+    builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF181C18) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(
+                color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+                width: 1,
+              ),
+              boxShadow: isDark
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.55),
+                        offset: const Offset(10, 10),
+                        blurRadius: 22,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.07),
+                        offset: const Offset(-8, -8),
+                        blurRadius: 18,
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.10),
+                        offset: const Offset(10, 10),
+                        blurRadius: 22,
+                      ),
+                      const BoxShadow(
+                        color: Colors.white,
+                        offset: Offset(-8, -8),
+                        blurRadius: 18,
+                      ),
+                    ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // handle
+                  Center(
+                    child: Container(
+                      width: 44, height: 5,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white12 : Colors.black12,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Are you starting something new?",
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: isDark ? textLight : textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // choice 1
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx, 'new'),
+                    child: _choiceTile(
+                      isDark: isDark,
+                      icon: Icons.add_rounded,
+                      iconBg: mintPrimary.withOpacity(0.12),
+                      iconColor: mintPrimary,
+                      title: 'This is something new',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // choice 2
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx, 'existing'),
+                    child: _choiceTile(
+                      isDark: isDark,
+                      icon: Icons.history_rounded,
+                      iconBg: const Color(0xFFF6C84E).withOpacity(0.15),
+                      iconColor: const Color(0xFFF6C84E),
+                      title: "I've practiced this before",
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  if (choice == 'new') {
+    final newSkill = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddSkillScreen()),
+    );
+    if (newSkill != null && newSkill is Skill) {
+      skillBox.put(newSkill.id, newSkill);
+    }
+  } else if (choice == 'existing') {
+    final existingSkill = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddExistingSkillScreen()),
+    );
+    if (existingSkill != null && existingSkill is Skill) {
+      skillBox.put(existingSkill.id, existingSkill);
+    }
+  }
+},
+),
     );
   }
 }
@@ -886,4 +1014,77 @@ class _ActionSheetTile extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
+
+Widget _choiceTile({
+  required bool isDark,
+  required IconData icon,
+  required Color iconBg,
+  required Color iconColor,
+  required String title,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+        width: 1,
+      ),
+      boxShadow: isDark
+          ? [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.55),
+                offset: const Offset(6, 6),
+                blurRadius: 14,
+              ),
+              BoxShadow(
+                color: Colors.white.withOpacity(0.07),
+                offset: const Offset(-6, -6),
+                blurRadius: 12,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                offset: const Offset(6, 6),
+                blurRadius: 14,
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                offset: Offset(-6, -6),
+                blurRadius: 12,
+              ),
+            ],
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: iconBg,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isDark ? Colors.white12 : const Color(0xFFE7ECE7),
+            ),
+          ),
+          child: Icon(icon, color: iconColor, size: 24),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: isDark ? textLight : textDark,
+            ),
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+      ],
+    ),
+  );
 }

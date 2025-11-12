@@ -30,11 +30,20 @@ class SkillStatsScreen extends StatelessWidget {
                 .toList()
               ..sort((a, b) => b.date.compareTo(a.date));
 
-            final totalMinutes =
-                sessions.fold<double>(0, (sum, s) => sum + s.durationMinutes);
-            final goalProgress =
-                liveSkill.goalHours == 0 ? 0.0 : (totalMinutes / 60) / liveSkill.goalHours;
+            // ✅ Поддержка сохранённого totalHours (для навыков, добавленных вручную)
+            double totalMinutes;
+            if (sessions.isEmpty) {
+              totalMinutes = liveSkill.totalHours * 60; // если нет сессий — берём из skill.totalHours
+            } else {
+              totalMinutes = sessions.fold<double>(0, (sum, s) => sum + s.durationMinutes);
+            }
 
+            // вычисляем прогресс цели
+            final goalProgress = (liveSkill.goalHours > 0)
+                ? (totalMinutes / 60) / liveSkill.goalHours
+                : 0.0;
+
+            // форматируем время красиво
             final formattedTotal = _formatDuration(totalMinutes);
             final weekStats = _calculateWeeklyStats(sessions);
             final last5 = sessions.take(5).toList();
