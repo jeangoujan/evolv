@@ -324,8 +324,7 @@ Widget _buildIconGrid(bool isDark) {
           totalHours: 0,
           currentStreak: 1,
           colorValue: color.value,
-          iconCode: icon.codePoint,
-          sessions: const [],
+          iconCode: icon.codePoint
         );
 
         final box = Hive.box<Skill>('skills');

@@ -1,12 +1,11 @@
 import 'package:hive/hive.dart';
-import 'session.dart';
 
 part 'skill.g.dart';
 
 @HiveType(typeId: 0)
 class Skill extends HiveObject {
   @HiveField(0)
-  int id; // уникальный идентификатор
+  int id;
 
   @HiveField(1)
   String name;
@@ -24,12 +23,11 @@ class Skill extends HiveObject {
   int colorValue;
 
   @HiveField(6)
-  int iconCode; // <-- вместо iconCodePoint / iconFontFamily
+  int iconCode;
 
+  // 🔥 Новое поле — дата создания
   @HiveField(7)
-  List<Session> sessions;
-
-
+  DateTime createdAt;
 
   Skill({
     required this.id,
@@ -39,6 +37,6 @@ class Skill extends HiveObject {
     this.currentStreak = 1,
     required this.colorValue,
     required this.iconCode,
-    this.sessions = const [],
-  });
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
 }

@@ -174,64 +174,112 @@ class _HomeScreenState extends State<HomeScreen> {
                 onLongPress: () async {
   final action = await showModalBottomSheet<String>(
     context: context,
-    backgroundColor: isDark ? const Color(0xFF181C18) : Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
     builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 5,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.black26,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_rounded, color: Colors.white70),
-                title: const Text(
-                  'Rename skill',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'rename'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.flag_rounded, color: Colors.white70),
-                title: const Text(
-                  'Edit goal hours',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'goal'),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading:
-                    const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                title: const Text(
-                  'Delete skill',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    color: Colors.redAccent,
-                  ),
-                ),
-                onTap: () => Navigator.pop(ctx, 'delete'),
-              ),
-            ],
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.only(top: 10, bottom: 26),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF181C18) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+            width: 1,
           ),
+          boxShadow: isDark
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.55),
+                    offset: const Offset(10, 10),
+                    blurRadius: 22,
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.07),
+                    offset: const Offset(-8, -8),
+                    blurRadius: 18,
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.10),
+                    offset: const Offset(10, 10),
+                    blurRadius: 22,
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    offset: Offset(-8, -8),
+                    blurRadius: 18,
+                  ),
+                ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // drag handle
+            Container(
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white12 : Colors.black12,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                children: [
+
+                  /// --- RENAME ---
+                  _AnimatedTap(
+                    borderRadius: 22,
+                    onTap: () => Navigator.pop(ctx, 'rename'),
+                    child: _choiceTile(
+                      isDark: isDark,
+                      icon: Icons.edit_rounded,
+                      iconBg: Colors.blue.withOpacity(0.15),
+                      iconColor: Colors.blueAccent,
+                      title: "Rename skill",
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  /// --- EDIT GOAL ---
+                  _AnimatedTap(
+                    borderRadius: 22,
+                    onTap: () => Navigator.pop(ctx, 'goal'),
+                    child: _choiceTile(
+                      isDark: isDark,
+                      icon: Icons.flag_rounded,
+                      iconBg: Colors.orange.withOpacity(0.15),
+                      iconColor: Colors.orangeAccent,
+                      title: "Edit goal hours",
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  /// --- DELETE ---
+                  _AnimatedTap(
+                    borderRadius: 22,
+                    onTap: () => Navigator.pop(ctx, 'delete'),
+                    child: _choiceTile(
+                      isDark: isDark,
+                      icon: Icons.delete_outline_rounded,
+                      iconBg: Colors.red.withOpacity(0.15),
+                      iconColor: Colors.redAccent,
+                      title: "Delete skill",
+                    ),
+                  ),
+
+                ],
+              ),
+            )
+          ],
         ),
       );
     },
@@ -373,7 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   name: s.name,
                   hoursLabel: hoursLabel,
                   icon: IconData(s.iconCode, fontFamily: 'MaterialIcons'),
-                  color: Color(s.colorValue),
+                  circleColor: Color(s.colorValue),
+                  iconColor: _getAdaptiveIconColor(Color(s.colorValue), isDark),
                   onCardTap: () {
                     Navigator.push(
                       context,
@@ -414,109 +463,119 @@ class _HomeScreenState extends State<HomeScreen> {
 
   HapticFeedback.lightImpact();
 
-  final choice = await showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent, // даём красивую «карту» внутри
-    builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Container(
+final choice = await showModalBottomSheet<String>(
+  context: context,
+  isScrollControlled: true,
+  backgroundColor: Colors.transparent,
+  builder: (ctx) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 10, bottom: 26),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF181C18) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+          width: 1,
+        ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.55),
+                  offset: const Offset(10, 10),
+                  blurRadius: 22,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.07),
+                  offset: const Offset(-8, -8),
+                  blurRadius: 18,
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.10),
+                  offset: const Offset(10, 10),
+                  blurRadius: 22,
+                ),
+                const BoxShadow(
+                  color: Colors.white,
+                  offset: Offset(-8, -8),
+                  blurRadius: 18,
+                ),
+              ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // drag handle
+          Container(
+            width: 44,
+            height: 5,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF181C18) : Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(
-                color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
-                width: 1,
-              ),
-              boxShadow: isDark
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.55),
-                        offset: const Offset(10, 10),
-                        blurRadius: 22,
-                      ),
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.07),
-                        offset: const Offset(-8, -8),
-                        blurRadius: 18,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.10),
-                        offset: const Offset(10, 10),
-                        blurRadius: 22,
-                      ),
-                      const BoxShadow(
-                        color: Colors.white,
-                        offset: Offset(-8, -8),
-                        blurRadius: 18,
-                      ),
-                    ],
+              color: isDark ? Colors.white12 : Colors.black12,
+              borderRadius: BorderRadius.circular(3),
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // handle
-                  Center(
-                    child: Container(
-                      width: 44, height: 5,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white12 : Colors.black12,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Are you starting something new?",
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                      color: isDark ? textLight : textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+          ),
 
-                  // choice 1
-                  GestureDetector(
-                    onTap: () => Navigator.pop(ctx, 'new'),
-                    child: _choiceTile(
-                      isDark: isDark,
-                      icon: Icons.add_rounded,
-                      iconBg: mintPrimary.withOpacity(0.12),
-                      iconColor: mintPrimary,
-                      title: 'This is something new',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+          const SizedBox(height: 20),
 
-                  // choice 2
-                  GestureDetector(
-                    onTap: () => Navigator.pop(ctx, 'existing'),
-                    child: _choiceTile(
-                      isDark: isDark,
-                      icon: Icons.history_rounded,
-                      iconBg: const Color(0xFFF6C84E).withOpacity(0.15),
-                      iconColor: const Color(0xFFF6C84E),
-                      title: "I've practiced this before",
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
+          // centered title
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              "Are you starting something new?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: isDark ? textLight : textDark,
               ),
             ),
           ),
-        ),
-      );
-    },
-  );
+
+          const SizedBox(height: 26),
+
+          // choice 1
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _AnimatedTap(
+              borderRadius: 22,
+              onTap: () => Navigator.pop(ctx, 'new'),
+              child: _choiceTile(
+                isDark: isDark,
+                icon: Icons.add_rounded,
+                iconBg: mintPrimary.withOpacity(0.12),
+                iconColor: mintPrimary,
+                title: 'This is something new',
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // choice 2
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _AnimatedTap(
+              borderRadius: 22,
+              onTap: () => Navigator.pop(ctx, 'existing'),
+              child: _choiceTile(
+                isDark: isDark,
+                icon: Icons.history_rounded,
+                iconBg: const Color(0xFFF6C84E).withOpacity(0.15),
+                iconColor: const Color(0xFFF6C84E),
+                title: "I've practiced this before",
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  },
+);
 
   if (choice == 'new') {
     final newSkill = await Navigator.push(
@@ -549,15 +608,18 @@ class _SkillCard extends StatelessWidget {
   final String name;
   final String hoursLabel;
   final IconData icon;
-  final Color color;
+  final Color circleColor;
+  final Color iconColor;
   final VoidCallback onCardTap;
   final VoidCallback onStartTap;
 
   const _SkillCard({
+    super.key,
     required this.name,
     required this.hoursLabel,
     required this.icon,
-    required this.color,
+    required this.circleColor,
+    required this.iconColor,
     required this.onCardTap,
     required this.onStartTap,
   });
@@ -618,20 +680,16 @@ class _SkillCard extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: color.withOpacity(0.85),
+                  color: circleColor.withOpacity(isDark ? 0.9 : 0.85),
                   border: Border.all(
-                    color:
-                        isDark ? Colors.white12 : const Color(0xFFE7ECE7),
+                    color: isDark ? Colors.white12 : const Color(0xFFE7ECE7),
                     width: 1,
                   ),
                 ),
                 child: Icon(
                   icon,
                   size: 26,
-                  color: isDark
-                      ? Color.lerp(Colors.black,
-                          theme.colorScheme.primary, 0.3)!
-                      : theme.colorScheme.primary,
+                  color: iconColor, // ← ВАЖНО!
                 ),
               ),
               const SizedBox(width: 16),
@@ -1087,4 +1145,23 @@ Widget _choiceTile({
       ],
     ),
   );
+}
+
+
+Color _getAdaptiveIconColor(Color base, bool isDark) {
+  if (isDark) {
+    // В тёмной теме ВСЕГДА белая или почти белая иконка
+    return Colors.white.withOpacity(0.9);
+  }
+
+  // В светлой теме — затемняем оригинальный цвет
+  return _darken(base, 0.32);
+}
+
+Color _darken(Color color, double amount) {
+  final hsl = HSLColor.fromColor(color);
+  final hslDark = hsl.withLightness(
+    (hsl.lightness - amount).clamp(0.0, 1.0),
+  );
+  return hslDark.toColor();
 }

@@ -10,6 +10,7 @@ import 'screens/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+
   await HiveBoxes.init();
 
   // ✅ Оборачиваем приложение в ChangeNotifierProvider
@@ -71,4 +72,19 @@ class EvolvHome extends StatelessWidget {
       ),
     );
   }
+}
+
+
+Future<void> clearHiveDebug() async {
+  // Если боксы были открыты — чистим
+  if (Hive.isBoxOpen('skills')) await Hive.box('skills').clear();
+  if (Hive.isBoxOpen('sessions')) await Hive.box('sessions').clear();
+  if (Hive.isBoxOpen('activeTimer')) await Hive.box('activeTimer').clear();
+
+  // Полностью удаляем с диска
+  await Hive.deleteBoxFromDisk('skills');
+  await Hive.deleteBoxFromDisk('sessions');
+  await Hive.deleteBoxFromDisk('activeTimer');
+
+  print('🔥 Hive completely wiped (debug)');
 }

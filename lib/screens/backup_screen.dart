@@ -119,8 +119,7 @@ class _BackupScreenState extends State<BackupScreen> {
         totalHours: (raw['totalHours'] ?? 0).toDouble(),
         currentStreak: raw['currentStreak'] ?? 1,
         colorValue: raw['colorValue'] ?? 0xFF81C784,
-        iconCode: raw['iconCode'] ?? 0xe04e,
-        sessions: const [],
+        iconCode: raw['iconCode'] ?? 0xe04e
       );
       await skillBox.put(s.id, s);
       addedSkills++;

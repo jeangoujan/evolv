@@ -352,7 +352,6 @@ class _AddExistingSkillScreenState extends State<AddExistingSkillScreen> {
           currentStreak: 1,
           colorValue: color.value,
           iconCode: icon.codePoint,
-          sessions: const [],
         );
 
         final box = Hive.box<Skill>('skills');

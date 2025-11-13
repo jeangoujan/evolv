@@ -24,7 +24,7 @@ class SkillAdapter extends TypeAdapter<Skill> {
       currentStreak: fields[4] as int,
       colorValue: fields[5] as int,
       iconCode: fields[6] as int,
-      sessions: (fields[7] as List).cast<Session>(),
+      createdAt: fields[7] as DateTime?,
     );
   }
 
@@ -47,7 +47,7 @@ class SkillAdapter extends TypeAdapter<Skill> {
       ..writeByte(6)
       ..write(obj.iconCode)
       ..writeByte(7)
-      ..write(obj.sessions);
+      ..write(obj.createdAt);
   }
 
   @override

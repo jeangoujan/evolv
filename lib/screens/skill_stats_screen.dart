@@ -67,6 +67,7 @@ class SkillStatsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              
               body: SafeArea(
   child: SingleChildScrollView(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -74,6 +75,22 @@ class SkillStatsScreen extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+
+        /// CREATED AT
+        Center(
+          child: Text(
+            'Created: ${_formatCreatedDate(liveSkill.createdAt)}',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
         // --- Top stats ---
         Row(
           children: [
@@ -576,3 +593,10 @@ DateTime _sundayOf(DateTime d) => _mondayOf(d).add(const Duration(days: 6));
 
 String _fmtDM(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
+
+
+String _formatCreatedDate(DateTime d) {
+  return '${d.day.toString().padLeft(2, '0')}.'
+         '${d.month.toString().padLeft(2, '0')}.'
+         '${d.year}';
+}
