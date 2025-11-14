@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
-
+import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
 
 class TimerSoundSettingsScreen extends StatefulWidget {
@@ -33,55 +33,66 @@ class _TimerSoundSettingsScreenState extends State<TimerSoundSettingsScreen> {
     });
   }
 
-  Future<void> _pickSound() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['mp3', 'wav', 'aac', 'm4a'],
-    );
+Future<void> _pickSound() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['mp3', 'wav', 'aac', 'm4a'],
+  );
 
-    if (result == null || result.files.single.path == null) return;
+  if (result == null || result.files.single.path == null) return;
 
-    final path = result.files.single.path!;
-    final file = File(path);
+  final tmpPath = result.files.single.path!;
+  final fileName = result.files.single.name;
 
-    // Проверим длительность
-    final tempPlayer = AudioPlayer();
-    await tempPlayer.setSource(DeviceFileSource(path));
-    final duration = await tempPlayer.getDuration();
+  // Проверяем длительность из tmp
+  final tempPlayer = AudioPlayer();
+  await tempPlayer.setSource(DeviceFileSource(tmpPath));
+  final duration = await tempPlayer.getDuration();
 
-    if (duration == null || duration.inSeconds > 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Sound must be 10 seconds or shorter.',
+  if (duration == null || duration.inSeconds > 10) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Sound must be 10 seconds or shorter.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontFamily: 'Inter'),
-          ),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        ),
-      );
-      return;
-    }
-
-    final box = await Hive.openBox('settings');
-    await box.put('customTimerSoundPath', path);
-    await box.put('customTimerSoundName', result.files.single.name);
-
-    setState(() {
-      _filePath = path;
-      _fileName = result.files.single.name;
-    });
+            style: TextStyle(fontFamily: 'Inter')),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+    );
+    return;
   }
 
-  Future<void> _playSound() async {
-    if (_filePath == null) return;
+  // → Копируем файл в Documents
+  final dir = await getApplicationDocumentsDirectory();
+  final newPath = '${dir.path}/$fileName';
 
-    await _player.stop();
-    await _player.play(DeviceFileSource(_filePath!));
+  await File(tmpPath).copy(newPath);
+
+  // → Сохраняем безопасный путь
+  final box = await Hive.openBox('settings');
+  await box.put('customTimerSoundPath', newPath);
+  await box.put('customTimerSoundName', fileName);
+
+  setState(() {
+    _filePath = newPath;
+    _fileName = fileName;
+  });
+}
+
+Future<void> _playSound() async {
+  if (_filePath == null) return;
+
+  final file = File(_filePath!);
+  if (!file.existsSync()) {
+    print("Sound file missing!");
+    return;
   }
+
+  await _player.stop();
+  await _player.play(DeviceFileSource(_filePath!));
+}
 
   Future<void> _resetSound() async {
     final box = await Hive.openBox('settings');

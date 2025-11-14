@@ -277,31 +277,178 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showAboutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1C201C)
-            : Colors.white,
-        title: const Text(
-          'About Evolv',
-          style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700),
-        ),
-        content: const Text(
-          'Evolv helps you grow through consistent skill practice\n\n'
-          'Version: 1.0.0\nDeveloped with ❤️ for lifelong learners\n\nMade by Jeangoujan',
-          style: TextStyle(fontFamily: 'Inter'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) {
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+        backgroundColor: isDark ? const Color(0xFF1C201C) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: isDark ? const Color(0xFF181C18) : Colors.white,
+            boxShadow: isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.55),
+                      offset: const Offset(8, 8),
+                      blurRadius: 18,
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.07),
+                      offset: const Offset(-6, -6),
+                      blurRadius: 14,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.10),
+                      offset: const Offset(8, 8),
+                      blurRadius: 18,
+                    ),
+                    const BoxShadow(
+                      color: Colors.white,
+                      offset: Offset(-6, -6),
+                      blurRadius: 12,
+                    ),
+                  ],
           ),
-        ],
-      ),
-    );
-  }
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // small Evolv icon
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: mintPrimary, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: mintPrimary.withOpacity(0.35),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              Text(
+                "About Evolv",
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  color: isDark ? textLight : textDark,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              Text(
+                "Evolv helps you grow through\nconsistent skill practice.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  height: 1.4,
+                  fontSize: 15,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                "Version: 1.0.0\nBuilt with ❤️ for lifelong learners",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  height: 1.4,
+                  fontSize: 14,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                "Made by Jeangoujan",
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? textLight : textDark,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // neumorphic close button
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 130),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 26, vertical: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    color: isDark ? const Color(0xFF1D211D) : Colors.white,
+                    border: Border.all(
+                      color:
+                          isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+                    ),
+                    boxShadow: isDark
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.55),
+                              offset: const Offset(6, 6),
+                              blurRadius: 14,
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.07),
+                              offset: const Offset(-6, -6),
+                              blurRadius: 12,
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.10),
+                              offset: const Offset(6, 6),
+                              blurRadius: 14,
+                            ),
+                            const BoxShadow(
+                              color: Colors.white,
+                              offset: Offset(-6, -6),
+                              blurRadius: 12,
+                            ),
+                          ],
+                  ),
+                  child: Text(
+                    "Close",
+                    style: TextStyle(
+                      color: mintPrimary,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 }
 
 // остальной низ файла (_NeuroCard, _SettingButtonTile, _AnimatedTap и т.д.)

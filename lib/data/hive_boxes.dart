@@ -1,3 +1,4 @@
+// data/hive_boxes.dart
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/skill.dart';
 import 'models/session.dart';
@@ -8,7 +9,7 @@ class HiveBoxes {
   static const timer = 'timer_state'; // для восстановления таймера
 
   static Future<void> init() async {
-    await Hive.initFlutter();
+    // ❌ Больше НЕ вызываем Hive.initFlutter() здесь
 
     // регистрируем адаптеры (делать один раз, до открытия боксов)
     if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(SkillAdapter());
