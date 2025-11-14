@@ -119,16 +119,80 @@ class _HomeScreenState extends State<HomeScreen> {
       // }
 
       if (skills.isEmpty) {
-        return Center(
-          child: Text(
-            'No skills yet.\nTap "Add Skill" to start!',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: isDark ? Colors.white60 : Colors.black54,
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Illustration circle
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDark ? const Color(0xFF1A1F1A) : Colors.white,
+            border: Border.all(
+              color: isDark ? const Color(0xFF232823) : const Color(0xFFE7ECE7),
+              width: 1.2,
             ),
+            boxShadow: isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.50),
+                      offset: const Offset(8, 8),
+                      blurRadius: 18,
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.06),
+                      offset: const Offset(-6, -6),
+                      blurRadius: 14,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.10),
+                      offset: const Offset(8, 8),
+                      blurRadius: 18,
+                    ),
+                    const BoxShadow(
+                      color: Colors.white,
+                      offset: Offset(-6, -6),
+                      blurRadius: 14,
+                    ),
+                  ],
           ),
-        );
-      }
+          child: Icon(
+            Icons.auto_awesome_rounded,  // Или другой: Icons.spa_rounded, Icons.star_rounded, Icons.bolt_rounded
+            size: 46,
+            color: mintPrimary,
+          ),
+        ),
+
+        const SizedBox(height: 26),
+
+        Text(
+          "No skills yet",
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: isDark ? textLight : textDark,
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        Text(
+          'Tap "Add Skill" to begin',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 15,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
@@ -340,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {});
       }
     }
-  } else if (action == 'delete') {
+  }    else if (action == 'delete') {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -388,7 +452,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (confirm == true) {
-      await skillBox.deleteAt(i);
+      // 1️⃣ Удаляем все сессии этого скилла
+      final sessionBox = HiveBoxes.sessionBox();
+      final sessionsToDelete = sessionBox.values
+          .where((sess) => sess.skillId == s.id)
+          .toList();
+
+      for (final sess in sessionsToDelete) {
+        await sessionBox.delete(sess.id); // id сессии = ключ
+      }
+
+      // 2️⃣ Удаляем сам скилл
+      await skillBox.delete(s.id); // вместо deleteAt(i)
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

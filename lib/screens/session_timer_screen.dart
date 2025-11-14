@@ -573,7 +573,7 @@ class _BackButton extends StatelessWidget {
   }
 }
 
-class _RingTimer extends StatelessWidget {
+class _RingTimer extends StatefulWidget {
   final double progress;
   final String timeText;
   final bool isDark;
@@ -587,97 +587,250 @@ class _RingTimer extends StatelessWidget {
   });
 
   @override
+  State<_RingTimer> createState() => _RingTimerState();
+}
+
+class _RingTimerState extends State<_RingTimer>
+    with TickerProviderStateMixin {
+  bool _pressed = false;
+
+  late final AnimationController _orbitCtrl;
+  late final AnimationController _breathCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Вращающаяся подсветка (10 секунд полный круг)
+    _orbitCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+
+    // "Breathing" эффект
+    _breathCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+      lowerBound: 0.85,
+      upperBound: 1.05,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _orbitCtrl.dispose();
+    _breathCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bgTrack = isDark ? Colors.white10 : const Color(0xFFE5EBE5);
+    final isDark = widget.isDark;
 
     return GestureDetector(
-      onTap: onCenterTap,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Базовый квадрат = 70% от кратчайшей стороны экрана (портрет/ландшафт)
-          final size = (constraints.biggest.shortestSide * 0.70).clamp(180.0, 420.0);
-          final ringSize = size * 0.82;                 // внутренний круг
-          final stroke = (size * 0.06).clamp(8.0, 18.0); // толщина дуг
-          final fontSize = (size * 0.16).clamp(28.0, 48.0);
+      onTapDown: (_) {
+        setState(() => _pressed = true);
+        HapticFeedback.lightImpact();
+      },
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onCenterTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_orbitCtrl, _breathCtrl]),
+          builder: (context, child) {
+            final orbitAngle = _orbitCtrl.value * 6.28318; // 2π
 
-          return SizedBox(
-            width: size,
-            height: size,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isDark ? const Color(0xFF181C18) : Colors.white,
-                boxShadow: isDark
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.55),
-                          offset: const Offset(10, 10),
-                          blurRadius: 22,
+            final breatheScale = _pressed
+                ? 1.0
+                : _breathCtrl.value; // не дышит в режиме прожатия
+
+            return Transform.scale(
+              scale: breatheScale,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final size = (constraints.biggest.shortestSide * 0.70)
+                      .clamp(180.0, 420.0);
+
+                  final ringSize = size * 0.82;
+                  final stroke =
+                      (size * 0.06).clamp(8.0, 18.0);
+                  final fontSize =
+                      (size * 0.16).clamp(28.0, 48.0);
+
+                  return SizedBox(
+                    width: size,
+                    height: size,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // -----------------------------------------
+                        // 🔵 1. Вращающаяся подсветка вокруг круга
+                        // -----------------------------------------
+                        Transform.rotate(
+                          angle: orbitAngle,
+                          child: Container(
+                            width: size,
+                            height: size,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: SweepGradient(
+                                startAngle: 0,
+                                endAngle: 6.28318,
+                                colors: [
+                                  mintPrimary.withOpacity(0.05),
+                                  Colors.transparent,
+                                  mintPrimary.withOpacity(0.05),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        BoxShadow(
-                          color: Colors.white.withOpacity(0.07),
-                          offset: const Offset(-10, -10),
-                          blurRadius: 18,
+
+                        // -----------------------------------------
+                        // 🔆 2. Неоморфная основа круга
+                        // -----------------------------------------
+                        Container(
+                          width: size,
+                          height: size,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark
+                                ? const Color(0xFF181C18)
+                                : Colors.white,
+                            boxShadow: _pressed
+                                ? _pressedShadow(isDark)
+                                : _normalShadow(isDark),
+                          ),
                         ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.10),
-                          offset: const Offset(10, 10),
-                          blurRadius: 22,
+
+                        // -----------------------------------------
+                        // ⚪ 3. Бэкграунд кольца
+                        // -----------------------------------------
+                        SizedBox(
+                          width: ringSize,
+                          height: ringSize,
+                          child: CircularProgressIndicator(
+                            value: 1,
+                            strokeWidth: stroke,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : const Color(0xFFE5EBE5),
+                            ),
+                          ),
                         ),
-                        const BoxShadow(
-                          color: Colors.white,
-                          offset: Offset(-10, -10),
-                          blurRadius: 18,
+
+                        // -----------------------------------------
+                        // 🟢 4. Прогресс кольца (анимированный)
+                        // -----------------------------------------
+                        SizedBox(
+                          width: ringSize,
+                          height: ringSize,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(
+                                begin: 0, end: widget.progress),
+                            duration:
+                                const Duration(milliseconds: 300),
+                            builder: (_, v, __) =>
+                                CircularProgressIndicator(
+                              value: v,
+                              strokeWidth: stroke,
+                              backgroundColor: Colors.transparent,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(
+                                      mintPrimary),
+                            ),
+                          ),
+                        ),
+
+                        // -----------------------------------------
+                        // 📝 5. Текст времени
+                        // -----------------------------------------
+                        Text(
+                          widget.timeText,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w800,
+                            fontSize: fontSize,
+                            color:
+                                isDark ? textLight : textDark,
+                          ),
                         ),
                       ],
+                    ),
+                  );
+                },
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: ringSize,
-                    height: ringSize,
-                    child: CircularProgressIndicator(
-                      value: 1,
-                      strokeWidth: stroke,
-                      valueColor: AlwaysStoppedAnimation<Color>(bgTrack),
-                    ),
-                  ),
-                  SizedBox(
-                    width: ringSize,
-                    height: ringSize,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: progress),
-                      duration: const Duration(milliseconds: 300),
-                      builder: (_, v, __) => CircularProgressIndicator(
-                        value: v,
-                        strokeWidth: stroke,
-                        backgroundColor: Colors.transparent,
-                        valueColor: AlwaysStoppedAnimation<Color>(mintPrimary),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    timeText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w800,
-                      fontSize: fontSize,
-                      color: isDark ? textLight : textDark,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
+
+  // -------------------------------------------------------
+  // ☁️ Неоморфные тени
+  // -------------------------------------------------------
+
+  List<BoxShadow> _normalShadow(bool isDark) => isDark
+      ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.55),
+            offset: const Offset(10, 10),
+            blurRadius: 26,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.07),
+            offset: const Offset(-10, -10),
+            blurRadius: 18,
+          ),
+        ]
+      : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            offset: const Offset(10, 10),
+            blurRadius: 26,
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            offset: Offset(-10, -10),
+            blurRadius: 18,
+          ),
+        ];
+
+  List<BoxShadow> _pressedShadow(bool isDark) => isDark
+      ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.75),
+            offset: const Offset(4, 4),
+            blurRadius: 14,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.05),
+            offset: const Offset(-4, -4),
+            blurRadius: 14,
+          ),
+        ]
+      : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            offset: const Offset(4, 4),
+            blurRadius: 14,
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            offset: Offset(-4, -4),
+            blurRadius: 14,
+          ),
+        ];
 }
+
 
 class _NeuroPillButton extends StatefulWidget {
   final String label;

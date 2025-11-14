@@ -105,44 +105,110 @@ class _BackupScreenState extends State<BackupScreen> {
 
     // --- Добавляем новые навыки ---
     for (final raw in skillsJson) {
-      if (raw is! Map) continue;
-      final id = raw['id'];
+  if (raw is! Map) continue;
 
-      // Проверяем, есть ли уже такой навык
-      final exists = skillBox.values.any((s) => s.id == id);
-      if (exists) continue;
+  // --- Validate ID ---
+  final id = raw['id'];
+  if (id == null) {
+    debugPrint("❌ Skill skipped: id is null");
+    continue;
+  }
 
-      final s = Skill(
-        id: id,
-        name: raw['name'] ?? 'Skill',
-        goalHours: (raw['goalHours'] ?? 0).toDouble(),
-        totalHours: (raw['totalHours'] ?? 0).toDouble(),
-        currentStreak: raw['currentStreak'] ?? 1,
-        colorValue: raw['colorValue'] ?? 0xFF81C784,
-        iconCode: raw['iconCode'] ?? 0xe04e
-      );
-      await skillBox.put(s.id, s);
-      addedSkills++;
-    }
+  // --- Skip if already exists in DB ---
+  final exists = skillBox.values.any((s) => s.id == id);
+  if (exists) continue;
+
+  // --- Safe number parsing ---
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
+  }
+
+  // --- Parse createdAt safely ---
+  DateTime? createdAt;
+  if (raw['createdAt'] != null) {
+    createdAt = DateTime.tryParse(raw['createdAt']);
+  }
+
+  final s = Skill(
+    id: id,
+    name: raw['name'] ?? 'Skill',
+    goalHours: _toDouble(raw['goalHours']),
+    totalHours: _toDouble(raw['totalHours']),
+    currentStreak: (raw['currentStreak'] is int)
+        ? raw['currentStreak']
+        : int.tryParse('${raw['currentStreak']}') ?? 1,
+    colorValue: (raw['colorValue'] is int)
+        ? raw['colorValue']
+        : int.tryParse('${raw['colorValue']}') ?? 0xFF81C784,
+    iconCode: (raw['iconCode'] is int)
+        ? raw['iconCode']
+        : int.tryParse('${raw['iconCode']}') ?? 0xe04e,
+    createdAt: createdAt,
+  );
+
+  await skillBox.put(s.id, s);
+  addedSkills++;
+}
 
     // --- Добавляем новые сессии ---
-    for (final raw in sessionsJson) {
-      if (raw is! Map) continue;
-      final id = raw['id'];
+    // --- Добавляем новые сессии ---
+for (final raw in sessionsJson) {
+  if (raw is! Map) continue;
 
-      final exists = sessionBox.values.any((sess) => sess.id == id);
-      if (exists) continue;
+  final rawId = raw['id'];
+  final rawSkillId = raw['skillId'];
 
-      final sess = Session(
-        id: id,
-        skillId: raw['skillId'],
-        durationMinutes: (raw['durationMinutes'] ?? 0).toDouble(),
-        date: DateTime.tryParse(raw['date'] ?? '') ?? DateTime.now(),
-        note: raw['note'],
-      );
-      await sessionBox.put(sess.id, sess);
-      addedSessions++;
-    }
+  // id и skillId обязательны
+  if (rawId == null || rawSkillId == null) {
+    debugPrint('❌ Session skipped: id=$rawId, skillId=$rawSkillId');
+    continue;
+  }
+
+  // безопасно приводим к int
+  int? parseInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v);
+    return null;
+  }
+
+  final id = parseInt(rawId);
+  final skillId = parseInt(rawSkillId);
+
+  // если не смогли распарсить — пропускаем
+  if (id == null || skillId == null) {
+    debugPrint('❌ Session skipped: cannot parse id/skillId → id=$rawId, skillId=$rawSkillId');
+    continue;
+  }
+
+  // уже существует такая сессия
+  final exists = sessionBox.values.any((sess) => sess.id == id);
+  if (exists) continue;
+
+  // безопасный double
+  double toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
+  }
+
+  final sess = Session(
+    id: id,
+    skillId: skillId,
+    durationMinutes: toDouble(raw['durationMinutes']),
+    date: raw['date'] is String
+        ? (DateTime.tryParse(raw['date']) ?? DateTime.now())
+        : DateTime.now(),
+    note: raw['note'] is String ? raw['note'] as String : null,
+  );
+
+  await sessionBox.put(sess.id, sess);
+  addedSessions++;
+}
 
     _showSnack('✅ Imported $addedSkills skill(s) and $addedSessions session(s)');
   } catch (e) {
@@ -452,6 +518,7 @@ Map<String, dynamic> _skillToJson(Skill s) => {
       'currentStreak': s.currentStreak,
       'colorValue': s.colorValue,
       'iconCode': s.iconCode,
+      'createdAt': s.createdAt.toIso8601String()
     };
 
 Map<String, dynamic> _sessionToJson(Session s) => {
