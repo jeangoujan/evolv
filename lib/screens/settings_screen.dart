@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../theme/theme_provider.dart';
 import 'backup_screen.dart';
 import 'tip_jar_screen.dart';
+import 'timer_sound_settings_screen.dart'; // 👈 НОВЫЙ ИМПОРТ
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,6 +19,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   Duration _defaultDuration = const Duration(hours: 1, minutes: 30);
 
+  // 👇 подпись для пункта "Timer Sound"
+  String _timerSoundLabel = 'Default sound';
+
   @override
   void initState() {
     super.initState();
@@ -27,7 +31,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadDuration() async {
     final box = await Hive.openBox('settings');
     final minutes = box.get('defaultDurationMinutes', defaultValue: 90);
-    setState(() => _defaultDuration = Duration(minutes: minutes));
+
+    final customPath = box.get('customTimerSoundPath') as String?;
+  
+
+    setState(() {
+      _defaultDuration = Duration(minutes: minutes);
+      _timerSoundLabel = customPath != null ? 'Custom' : 'Default';
+    });
   }
 
   Future<void> _saveDuration(Duration duration) async {
@@ -97,6 +108,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // 👇 отдельный метод для открытия экрана настроек звука,
+  // чтобы после возврата обновлять подпись
+  Future<void> _openTimerSoundSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TimerSoundSettingsScreen()),
+    );
+    // после возврата обновляем подпись (Default / Custom)
+    await _loadDuration();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -120,105 +142,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-  minimum: const EdgeInsets.only(top: 8, bottom: 12),
-  child: SingleChildScrollView(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _NeuroCard(
+        minimum: const EdgeInsets.only(top: 8, bottom: 12),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SettingSwitchTile(
-                icon: Icons.brightness_6_rounded,
-                title: 'Light / Dark Mode',
-                value: isDarkMode,
-                onChanged: (v) {
-                  themeProvider.setTheme(
-                    v ? ThemeMode.dark : ThemeMode.light,
-                  );
-                },
-              ),
-              _SettingDivider(),
-              _SettingButtonTile(
-                icon: Icons.timer_outlined,
-                title: 'Default Session Duration',
-                subtitle: _formatDuration(_defaultDuration),
-                onTap: _pickDuration,
-              ),
-              _SettingDivider(),
-              _SettingButtonTile(
-                icon: Icons.favorite_outline_rounded,
-                title: 'Support Evolv 💚',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const TipJarScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        _NeuroCard(
-          child: Column(
-            children: [
-              _SettingButtonTile(
-                icon: Icons.cloud_outlined,
-                title: 'Data & Backup',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BackupScreen()),
-                  );
-                },
-              ),
-              _SettingDivider(),
-              _SettingButtonTile(
-                icon: Icons.privacy_tip_outlined,
-                title: 'Privacy',
-                onTap: _openPrivacyPolicy,
-              ),
-              _SettingDivider(),
-              _SettingButtonTile(
-                icon: Icons.info_outline_rounded,
-                title: 'About',
-                onTap: () => _showAboutDialog(context),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 40),
-        Column(
-          children: [
-            Text(
-              'Evolv v1.0.0',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                color: isDark ? Colors.white54 : Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: _contactSupport,
-              child: Text(
-                'Contact Support',
-                style: TextStyle(
-                  color: mintPrimary,
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.underline,
+              _NeuroCard(
+                child: Column(
+                  children: [
+                    _SettingSwitchTile(
+                      icon: Icons.brightness_6_rounded,
+                      title: 'Light / Dark Mode',
+                      value: isDarkMode,
+                      onChanged: (v) {
+                        themeProvider.setTheme(
+                          v ? ThemeMode.dark : ThemeMode.light,
+                        );
+                      },
+                    ),
+                    _SettingDivider(),
+                    _SettingButtonTile(
+                      icon: Icons.timer_outlined,
+                      title: 'Default Session Duration',
+                      subtitle: _formatDuration(_defaultDuration),
+                      onTap: _pickDuration,
+                    ),
+
+                    // 👇 НОВЫЙ ПУНКТ "Timer Sound"
+                    _SettingDivider(),
+                    _SettingButtonTile(
+                      icon: Icons.music_note_rounded,
+                      title: 'Timer Sound',
+                      subtitle: _timerSoundLabel,
+                      onTap: _openTimerSoundSettings,
+                    ),
+
+                    _SettingDivider(),
+                    _SettingButtonTile(
+                      icon: Icons.favorite_outline_rounded,
+                      title: 'Support Evolv 💚',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TipJarScreen()),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 30),
-          ],
+              const SizedBox(height: 20),
+              _NeuroCard(
+                child: Column(
+                  children: [
+                    _SettingButtonTile(
+                      icon: Icons.cloud_outlined,
+                      title: 'Data & Backup',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const BackupScreen()),
+                        );
+                      },
+                    ),
+                    _SettingDivider(),
+                    _SettingButtonTile(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Privacy',
+                      onTap: _openPrivacyPolicy,
+                    ),
+                    _SettingDivider(),
+                    _SettingButtonTile(
+                      icon: Icons.info_outline_rounded,
+                      title: 'About',
+                      onTap: () => _showAboutDialog(context),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
+              Column(
+                children: [
+                  Text(
+                    'Evolv v1.0.0',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: _contactSupport,
+                    child: Text(
+                      'Contact Support',
+                      style: TextStyle(
+                        color: mintPrimary,
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            ],
+          ),
         ),
-      ],
-    ),
-  ),
-),
+      ),
     );
   }
 
@@ -233,16 +265,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-Future<void> _openPrivacyPolicy() async {
-  final Uri url = Uri.parse('https://evolvapp.site/privacy');
-  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Could not open Privacy Policy'),
-      ),
-    );
+  Future<void> _openPrivacyPolicy() async {
+    final Uri url = Uri.parse('https://evolvapp.site/privacy');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open Privacy Policy'),
+        ),
+      );
+    }
   }
-}
 
   void _showAboutDialog(BuildContext context) {
     showDialog(
@@ -271,6 +303,9 @@ Future<void> _openPrivacyPolicy() async {
     );
   }
 }
+
+// остальной низ файла (_NeuroCard, _SettingButtonTile, _AnimatedTap и т.д.)
+// остаётся без изменений
 
 // ---------------------------------------------------------------------------
 // ОСТАЛЬНЫЕ КОМПОНЕНТЫ (без изменений, только добавлен subtitle)

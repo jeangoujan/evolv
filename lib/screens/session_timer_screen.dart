@@ -231,19 +231,42 @@ Future<void> _restoreState() async {
     _ticker?.cancel();
     await _cancelNotification();
     _elapsed = widget.targetDuration;
-    HapticFeedback.mediumImpact();
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 120), () {
+  HapticFeedback.selectionClick();
+});
     await _playSound();
     await _saveState();
     if (mounted) setState(() {});
   }
 
-  Future<void> _playSound() async {
-    try {
-      await _audioPlayer.play(AssetSource('sounds/notification-2-269292.mp3'));
-    } catch (e) {
-      debugPrint('Sound error: $e');
+Future<void> _playSound() async {
+  try {
+    final box = await Hive.openBox('settings');
+    final customPath = box.get('customTimerSoundPath');
+
+    await _audioPlayer.stop();
+
+    if (customPath != null) {
+      // --- play custom sound ---
+      await _audioPlayer.play(DeviceFileSource(customPath));
+    } else {
+      // --- fallback: default sound asset ---
+      await _audioPlayer.play(
+        AssetSource('sounds/notification-2-269292.mp3'),
+      );
     }
+  } catch (e) {
+    debugPrint('❌ Timer sound error: $e');
+
+    // fallback if something breaks
+    try {
+      await _audioPlayer.play(
+        AssetSource('sounds/notification-2-269292.mp3'),
+      );
+    } catch (_) {}
   }
+}
 
   // -------------------- END SESSION --------------------
   Future<void> _endSession({required bool fromCompletion}) async {
