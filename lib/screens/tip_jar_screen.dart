@@ -11,7 +11,7 @@ class TipJarScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Support Evolv',
+          'Support Nexlo',
           style: TextStyle(
             fontFamily: 'Inter',
             fontWeight: FontWeight.w700,
@@ -72,7 +72,7 @@ class TipJarScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             Text(
-              'Thank you for supporting Evolv 💚',
+              'Thank you for supporting Nexlo 💚',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Inter',
@@ -86,7 +86,7 @@ class TipJarScreen extends StatelessWidget {
 
             /// Нижний текст
             Text(
-              'Evolv will stay ad-free.\nYour support means a lot.',
+              'Nexlo will stay ad-free.\nYour support means a lot.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Inter',

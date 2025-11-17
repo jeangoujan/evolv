@@ -181,7 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingDivider(),
                     _SettingButtonTile(
                       icon: Icons.favorite_outline_rounded,
-                      title: 'Support Evolv 💚',
+                      title: 'Support Nexlo 💚',
                       onTap: () {
                         Navigator.push(
                           context,
@@ -225,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Column(
                 children: [
                   Text(
-                    'Evolv v1.0.0',
+                    'Nexlo v1.0.0',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       color: isDark ? Colors.white54 : Colors.black54,
@@ -257,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _contactSupport() async {
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
-      path: 'support@evolvapp.site',
-      queryParameters: {'subject': 'Evolv App Support'},
+      path: 'support@nexlo.site',
+      queryParameters: {'subject': 'Nexlo App Support'},
     );
     if (await canLaunchUrl(emailLaunchUri)) {
       await launchUrl(emailLaunchUri);
@@ -266,7 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _openPrivacyPolicy() async {
-    final Uri url = Uri.parse('https://evolvapp.site/privacy');
+    final Uri url = Uri.parse('https://nexlo.site/privacy');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -323,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // small Evolv icon
+              // small Nexlo icon
               Container(
                 width: 52,
                 height: 52,
@@ -342,7 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 18),
 
               Text(
-                "About Evolv",
+                "About Nexlo",
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontWeight: FontWeight.w700,
@@ -354,7 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 16),
 
               Text(
-                "Evolv helps you grow through\nconsistent skill practice.",
+                "Nexlo helps you grow through\nconsistent skill practice.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Inter',

@@ -39,12 +39,12 @@ class _BackupScreenState extends State<BackupScreen> {
 
       final jsonStr = jsonEncode(data);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/evolv_backup.json');
+      final file = File('${dir.path}/nexlo_backup.json');
       await file.writeAsString(jsonStr);
 
       final shareResult = await Share.shareXFiles(
         [XFile(file.path)],
-        text: '📦 Here is your Evolv backup file.',
+        text: '📦 Here is your Nexlo backup file.',
         // фикс для iOS: non-zero rect
         sharePositionOrigin: Rect.fromCenter(
           center: MediaQuery.of(context).size.center(Offset.zero),
@@ -280,7 +280,7 @@ for (final raw in sessionsJson) {
               ),
               const SizedBox(height: 16),
               Text(
-                'Export or restore your Evolv data',
+                'Export or restore your Nexlo data',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontFamily: 'Inter',

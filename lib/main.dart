@@ -37,7 +37,7 @@ class EvolvApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
-      title: 'Evolv',
+      title: 'Nexlo',
       debugShowCheckedModeBanner: false,
       theme: evolvLightTheme(),
       darkTheme: evolvDarkTheme(),
