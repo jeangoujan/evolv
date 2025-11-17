@@ -54,12 +54,12 @@ class EvolvHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Evolv')),
+      appBar: AppBar(title: const Text('Nexlo')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Welcome to Evolv 👋', style: theme.textTheme.titleMedium),
+            Text('Welcome to Nexlo 👋', style: theme.textTheme.titleMedium),
             const SizedBox(height: 16),
             Text(
               'Track your growth.',
